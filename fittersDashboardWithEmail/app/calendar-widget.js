@@ -3336,6 +3336,15 @@ function getWeekNumber(date) {
     if (sendEmailBtn) {
       sendEmailBtn.disabled = selectedCount === 0;
       sendEmailBtn.textContent = selectedCount > 0 ? `Send Email (${selectedCount})` : 'Send Email';
+      
+      // Add visual styling for disabled state
+      if (sendEmailBtn.disabled) {
+        sendEmailBtn.style.opacity = '0.6';
+        sendEmailBtn.style.cursor = 'not-allowed';
+      } else {
+        sendEmailBtn.style.opacity = '1';
+        sendEmailBtn.style.cursor = 'pointer';
+      }
     }
   }
   
@@ -3399,15 +3408,15 @@ function getWeekNumber(date) {
         if (messageInput) {
           // Generate signature HTML (without Thanks/name - those are added separately)
           const signature = generateSignature();
-          // Pre-populate message with "Thanks," on one line and user name on next line, followed by signature
-          const messageText = `Thanks,\n${userName}\n\n${signature}`;
+          // Pre-populate message: 2 blank lines, "Thanks," + userName + 2 blank lines + signature
+          const messageText = `\n\nThanks,\n${userName}\n\n${signature}`;
           messageInput.value = messageText;
           
           // Update the preview div with rendered HTML
           const previewDiv = document.getElementById('emailMessagePreview');
           if (previewDiv) {
-            // Build HTML content: "Thanks," + userName + signature (no extra spacing)
-            const htmlContent = `Thanks,<br>${userName}<br>${signature}`;
+            // Build HTML content: 2 blank lines, then "Thanks," + userName + 2 blank lines + signature
+            const htmlContent = `<br><br>Thanks,<br>${userName}<br><br>${signature}`;
             previewDiv.innerHTML = htmlContent;
             // Store HTML for email sending
             messageInput.dataset.htmlContent = htmlContent;
@@ -3421,12 +3430,12 @@ function getWeekNumber(date) {
         const messageInput = document.getElementById('emailMessage');
         if (messageInput) {
           const signature = generateSignature();
-          const messageText = `Thanks,\nTeam\n\n${signature}`;
+          const messageText = `\n\nThanks,\nTeam\n\n${signature}`;
           messageInput.value = messageText;
           
           const previewDiv = document.getElementById('emailMessagePreview');
           if (previewDiv) {
-            const htmlContent = `Thanks,<br>Team<br>${signature}`;
+            const htmlContent = `<br><br>Thanks,<br>Team<br><br>${signature}`;
             previewDiv.innerHTML = htmlContent;
             messageInput.dataset.htmlContent = htmlContent;
           }
@@ -3440,15 +3449,12 @@ function getWeekNumber(date) {
   }
   
   function generateSignature() {
-    // Generate signature HTML based on Signature.html template
-    // Removed "Thanks" and user name as they're added separately
-    return `<div style="font-family: Arial, Helvetica, serif, sans-serif; font-size: 12pt">
-<div><br></div>
-<div class="x_687415606zmail_signature_below">
-<div>
-<div><br></div>
-<div><a href="https://www.mybeautifulbathroom.co.uk/" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/My-Beautiful-Kitchen-Bathroom-Combined-PNG-LOGO-768x104.png" width="400" height="54"></a><br></div>
-<div><a href="https://www.facebook.com/MyBeautifulKitchenAndBathroom/" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/Facebook-48x48-1.png" width="48" height="48"></a>&nbsp;&nbsp;<a href="https://www.instagram.com/mybeautifulkitchenbathroom/" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/Instagram-48x48-1.png" width="48" height="48"></a>&nbsp;&nbsp;<a href="https://www.youtube.com/channel/UCIp8bBAsoJTIQlr9tO6LEwQ/featured" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/YouTube-48x48-1.png" width="48" height="48"></a><br></div>
+    // Generate signature HTML - minimal spacing, starts right after line break
+    return `<div style="font-family: Arial, Helvetica, serif, sans-serif; font-size: 12pt; margin: 0; padding: 0; line-height: 1; display: inline-block; width: 100%;">
+<div class="x_687415606zmail_signature_below" style="margin: 0; padding: 0; line-height: 1;">
+<div style="margin: 0; padding: 0; line-height: 1;">
+<div style="margin: 0; padding: 0; line-height: 1;"><a href="https://www.mybeautifulbathroom.co.uk/" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/My-Beautiful-Kitchen-Bathroom-Combined-PNG-LOGO-768x104.png" width="400" height="54" style="display: block; margin: 0; padding: 0; border: 0;"></a></div>
+<div style="margin: 0; padding: 0; line-height: 1;"><a href="https://www.facebook.com/MyBeautifulKitchenAndBathroom/" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/Facebook-48x48-1.png" width="48" height="48" style="margin: 0; padding: 0; border: 0;"></a>&nbsp;&nbsp;<a href="https://www.instagram.com/mybeautifulkitchenbathroom/" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/Instagram-48x48-1.png" width="48" height="48" style="margin: 0; padding: 0; border: 0;"></a>&nbsp;&nbsp;<a href="https://www.youtube.com/channel/UCIp8bBAsoJTIQlr9tO6LEwQ/featured" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/YouTube-48x48-1.png" width="48" height="48" style="margin: 0; padding: 0; border: 0;"></a></div>
 </div>
 </div>
 </div>`;

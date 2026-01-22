@@ -1454,6 +1454,7 @@ body {
   overflow-y: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
+  line-height: 1.4;
 }
 
 #emailMessagePreview:empty:before {
@@ -1466,6 +1467,34 @@ body {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Remove extra spacing from signature divs */
+#emailMessagePreview div {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+
+#emailMessagePreview .x_687415606zmail_signature_below {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+}
+
+/* Ensure no extra spacing between text and signature - signature starts immediately after br */
+#emailMessagePreview br + div {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  line-height: 1 !important;
+  display: inline-block;
+  width: 100%;
+}
+
+/* Remove any spacing from the first div in signature */
+#emailMessagePreview br + div > div {
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .form-actions {
