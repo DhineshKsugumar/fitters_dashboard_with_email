@@ -916,7 +916,7 @@ function getWeekNumber(date) {
       console.log(`Fetching Fitters page ${currentPage}...`);
       
       const coqlQuery = {
-        "select_query": `select id,First_Name,Last_Name,Email,Home_Phone,Mobile,Fitter_Skillset_2,Skills_They_Can_t_Do,Postcode_Area_New,Work_Consistency,Insurance_Status,PL_Date,PL_Insurance_Number,Fitter_Status,Terms_Masdouk from Contacts where (Fitter_Status = 'Live + Current' or Fitter_Status = 'Live + Current (To Be Audited)') limit 200 offset ${(currentPage - 1) * 200}`
+        "select_query": `select id,First_Name,Last_Name,Email,Home_Phone,Mobile,Fitter_Skillset_2,Skills_They_Can_t_Do,Postcode_Area_New,Work_Consistency,Insurance_Status,PL_Date,PL_Insurance_Number,Fitter_Status,Terms_Masdouk,Lead from Contacts where (Fitter_Status = 'Live + Current' or Fitter_Status = 'Live + Current (To Be Audited)') limit 200 offset ${(currentPage - 1) * 200}`
       };
       
       console.log(`COQL Query page ${currentPage}:`, coqlQuery);
@@ -1043,6 +1043,16 @@ function getWeekNumber(date) {
         skillsetData = skillsetData.join(',');
       }
       
+      // Extract Lead ID - handle both object and string formats
+      let leadId = null;
+      if (fitter.Lead) {
+        if (typeof fitter.Lead === 'string') {
+          leadId = fitter.Lead;
+        } else if (fitter.Lead.id) {
+          leadId = fitter.Lead.id;
+        }
+      }
+      
       const fitterData = {
         id: fitter.id,
         firstName: fitter.First_Name || '',
@@ -1058,7 +1068,8 @@ function getWeekNumber(date) {
         plDate: fitter.PL_Date || '',
         plInsuranceNo: fitter.PL_Insurance_Number || '',
         termsMasdouk: fitter.Terms_Masdouk || '',
-        fitterStatus: fitter.Fitter_Status || ''
+        fitterStatus: fitter.Fitter_Status || '',
+        leadId: leadId
       };
       
       fitters.push(fitterData);
@@ -2978,8 +2989,11 @@ function getWeekNumber(date) {
     const allOption = document.createElement('div');
     allOption.className = 'fitter-dropdown-item';
     allOption.dataset.value = '';
+    allOption.dataset.name = 'All Fitters';
     allOption.textContent = 'All Fitters';
-    allOption.addEventListener('click', () => {
+    allOption.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       input.value = 'All Fitters';
       dropdown.value = '';
       dropdownList.classList.remove('show');
@@ -3001,7 +3015,9 @@ function getWeekNumber(date) {
       item.dataset.value = fitter.id;
       item.dataset.name = fitter.name;
       item.textContent = fitter.name;
-      item.addEventListener('click', () => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         input.value = fitter.name;
         dropdown.value = fitter.id;
         dropdownList.classList.remove('show');
@@ -3010,7 +3026,7 @@ function getWeekNumber(date) {
       dropdownList.appendChild(item);
     });
     
-    // Restore previous selection
+    // Restore previous selection only if it exists
     if (currentSelection) {
       dropdown.value = currentSelection;
       const selectedFitter = fitters.find(f => f.id === currentSelection);
@@ -3018,16 +3034,23 @@ function getWeekNumber(date) {
         input.value = selectedFitter.name;
       }
     } else {
-      input.value = 'All Fitters';
+      // Only set to "All Fitters" if input is empty (not if user is typing)
+      if (!input.value || input.value.trim() === '') {
+        input.value = 'All Fitters';
+      }
     }
     
     // Add event listeners for searchable input (only if not already added)
     if (!input.hasAttribute('data-listeners-added')) {
       input.setAttribute('data-listeners-added', 'true');
       
-      input.addEventListener('focus', () => {
+      input.addEventListener('focus', (e) => {
         dropdownList.classList.add('show');
-        filterDropdownList('');
+        // If input shows "All Fitters", clear it when focused to allow typing
+        if (e.target.value === 'All Fitters') {
+          e.target.value = '';
+        }
+        filterDropdownList(e.target.value.toLowerCase());
       });
       
       input.addEventListener('input', (e) => {
@@ -3035,10 +3058,15 @@ function getWeekNumber(date) {
         filterDropdownList(searchTerm);
         dropdownList.classList.add('show');
         
-        // If input is cleared completely, reset to "All Fitters"
-        if (e.target.value === '') {
+        // If input is cleared completely, reset to "All Fitters" and clear selection
+        if (e.target.value === '' || e.target.value.trim() === '') {
           dropdown.value = '';
+          e.target.value = '';
+          e.target.placeholder = 'Search or select fitter...';
           populateFittersTable(window.fitters);
+        } else {
+          // Clear the dropdown selection when user types (they're searching, not selecting)
+          dropdown.value = '';
         }
       });
       
@@ -3046,6 +3074,12 @@ function getWeekNumber(date) {
         // Delay hiding to allow click events
         setTimeout(() => {
           dropdownList.classList.remove('show');
+          
+          // If input is empty or just whitespace after blur, set to "All Fitters"
+          // But only if no selection was made (dropdown.value is empty)
+          if ((!e.target.value || e.target.value.trim() === '') && !dropdown.value) {
+            e.target.value = 'All Fitters';
+          }
         }, 200);
       });
     }
@@ -3083,29 +3117,23 @@ function getWeekNumber(date) {
       window.fittersDropdownPopulated = true;
       window.fittersDropdownHash = fittersHash;
       
-      // Restore selected value after populating
+      // Restore selected value after populating (only if input is not being actively used)
       if (selectedFitterId && fitterNameFilter) {
         fitterNameFilter.value = selectedFitterId;
         const fitterNameInput = document.getElementById('fitterNameFilterInput');
         const selectedFitter = fitters.find(f => f.id === selectedFitterId);
+        // Only update input if it's currently showing "All Fitters" or empty (not if user is typing)
         if (selectedFitter && fitterNameInput) {
-          fitterNameInput.value = selectedFitter.name;
+          const currentInputValue = fitterNameInput.value.trim();
+          if (currentInputValue === '' || currentInputValue === 'All Fitters') {
+            fitterNameInput.value = selectedFitter.name;
+          }
         }
       }
     }
     
-    // Update input display if a fitter is selected (only if not already set by user interaction)
-    const fitterNameInput = document.getElementById('fitterNameFilterInput');
-    if (fitterNameInput) {
-      if (selectedFitterId) {
-        const selectedFitter = fitters.find(f => f.id === selectedFitterId);
-        if (selectedFitter && fitterNameInput.value !== selectedFitter.name) {
-          fitterNameInput.value = selectedFitter.name;
-        }
-      } else if (!fitterNameInput.value || fitterNameInput.value === '') {
-        fitterNameInput.value = 'All Fitters';
-      }
-    }
+    // Don't update input display here - let the user type freely
+    // Only update when a selection is made from dropdown (handled in populateFitterDropdown)
     
     // Sort fitters alphabetically by name
     let filteredFitters = [...fitters].sort((a, b) => {
@@ -3160,7 +3188,7 @@ function getWeekNumber(date) {
         <td>
           <div class="action-buttons">
               <button class="btn-edit" onclick="openEditFitterModal('${fitter.id}', '${fitter.firstName} ${fitter.lastName}', '${JSON.stringify(Array.isArray(fitter.skillset) ? fitter.skillset : fitter.skillset.split(',').map(s => s.trim())).replace(/"/g, '&quot;')}', '${JSON.stringify(Array.isArray(fitter.skillsShortage) ? fitter.skillsShortage : fitter.skillsShortage.split(',').map(s => s.trim())).replace(/"/g, '&quot;')}', '${fitter.postcodesCovered || ''}', '${fitter.workConsistency || ''}')">Edit</button>
-            <button class="btn-view" onclick="viewFitterInCRM('${fitter.id}')">View</button>
+            <button class="btn-view" onclick="viewFitterInCRM('${fitter.leadId || ''}')" ${!fitter.leadId ? 'disabled title="No Lead associated"' : ''}>View</button>
           </div>
         </td>
         <td>${fitter.name}</td>
@@ -3883,17 +3911,24 @@ function getWeekNumber(date) {
     }
   }
   
-  window.viewFitterInCRM = function(fitterId) {
-    // Open fitter in Zoho CRM in new tab
+  window.viewFitterInCRM = function(leadId) {
+    // Open Lead in Zoho CRM in new tab
+    if (!leadId) {
+      alert('No Lead associated with this fitter.');
+      return;
+    }
+    
     try {
       const context = window.ZOHO.embeddedApp.getContext();
-      const orgId = context ? context.orgId : 'default';
-      const crmUrl = `https://crm.zoho.com/crm/org${orgId}/tab/Contacts/${fitterId}`;
+      const orgId = context ? context.orgId : '2579410';
+      const canvasId = '167246000064978647';
+      const crmUrl = `https://crm.zoho.com/crm/org${orgId}/tab/Leads/${leadId}/canvas/${canvasId}`;
       window.open(crmUrl, '_blank');
     } catch (error) {
       console.error('Error getting context, using default URL:', error);
-      // Fallback URL without orgId
-      const crmUrl = `https://crm.zoho.com/crm/tab/Contacts/${fitterId}`;
+      // Fallback URL with default orgId
+      const canvasId = '167246000064978647';
+      const crmUrl = `https://crm.zoho.com/crm/org2579410/tab/Leads/${leadId}/canvas/${canvasId}`;
       window.open(crmUrl, '_blank');
     }
   }

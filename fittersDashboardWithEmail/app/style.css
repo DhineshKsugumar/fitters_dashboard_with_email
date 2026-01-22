@@ -1404,6 +1404,17 @@ body {
   background-color: #4b5563;
 }
 
+.btn-view:disabled {
+  background-color: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn-view:disabled:hover {
+  background-color: #d1d5db;
+}
+
 /* Edit Fitter Modal Styles */
 .form-group {
   margin-bottom: 1.5rem;
