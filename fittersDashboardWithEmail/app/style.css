@@ -1447,6 +1447,27 @@ body {
   color: #6b7280;
 }
 
+/* Email Message Preview (Contenteditable) */
+#emailMessagePreview {
+  min-height: 200px;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+#emailMessagePreview:empty:before {
+  content: attr(placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+#emailMessagePreview:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
 .form-actions {
   display: flex;
   gap: 1rem;

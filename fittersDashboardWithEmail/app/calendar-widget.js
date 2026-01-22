@@ -514,7 +514,15 @@ document.addEventListener('DOMContentLoaded', function() {
       
       if (emailMessage && !emailMessage.hasAttribute('data-listener-attached')) {
         emailMessage.setAttribute('data-listener-attached', 'true');
-        emailMessage.addEventListener('input', updateEmailCharCount);
+        // Note: We'll listen to the preview div instead
+      }
+      
+      // Add event listeners for the preview div
+      const emailMessagePreview = document.getElementById('emailMessagePreview');
+      if (emailMessagePreview && !emailMessagePreview.hasAttribute('data-listener-attached')) {
+        emailMessagePreview.setAttribute('data-listener-attached', 'true');
+        emailMessagePreview.addEventListener('input', updateEmailCharCount);
+        emailMessagePreview.addEventListener('blur', syncPreviewToTextarea);
       }
       
       // Close modal when clicking outside
@@ -3046,11 +3054,13 @@ function getWeekNumber(date) {
       
       input.addEventListener('focus', (e) => {
         dropdownList.classList.add('show');
-        // If input shows "All Fitters", clear it when focused to allow typing
-        if (e.target.value === 'All Fitters') {
-          e.target.value = '';
-        }
-        filterDropdownList(e.target.value.toLowerCase());
+        // Clear the input when focused to allow fresh typing/searching
+        // Store the current selection before clearing
+        const currentSelection = dropdown.value;
+        e.target.value = '';
+        // Clear the dropdown selection temporarily so user can search
+        dropdown.value = '';
+        filterDropdownList('');
       });
       
       input.addEventListener('input', (e) => {
@@ -3075,10 +3085,29 @@ function getWeekNumber(date) {
         setTimeout(() => {
           dropdownList.classList.remove('show');
           
-          // If input is empty or just whitespace after blur, set to "All Fitters"
-          // But only if no selection was made (dropdown.value is empty)
-          if ((!e.target.value || e.target.value.trim() === '') && !dropdown.value) {
-            e.target.value = 'All Fitters';
+          // If input is empty or just whitespace after blur
+          if (!e.target.value || e.target.value.trim() === '') {
+            if (!dropdown.value) {
+              // No selection, show "All Fitters"
+              e.target.value = 'All Fitters';
+            } else {
+              // There's a selection, restore the selected fitter's name
+              const selectedFitter = window.fitters?.find(f => f.id === dropdown.value);
+              if (selectedFitter) {
+                e.target.value = selectedFitter.name;
+              } else {
+                e.target.value = 'All Fitters';
+              }
+            }
+          } else {
+            // Input has text - check if it matches a selection
+            if (dropdown.value) {
+              const selectedFitter = window.fitters?.find(f => f.id === dropdown.value);
+              if (selectedFitter && e.target.value !== selectedFitter.name) {
+                // User typed something different, restore the selected name
+                e.target.value = selectedFitter.name;
+              }
+            }
           }
         }, 200);
       });
@@ -3327,7 +3356,7 @@ function getWeekNumber(date) {
     return selectedFitters;
   }
   
-  function openSendEmailModal() {
+  async function openSendEmailModal() {
     console.log('openSendEmailModal called');
     const selectedFitters = getSelectedFitters();
     console.log('Selected fitters:', selectedFitters);
@@ -3355,15 +3384,74 @@ function getWeekNumber(date) {
       modal.style.display = 'block';
       console.log('Modal displayed');
       
-      // Clear form
+      // Clear subject
       const subjectInput = document.getElementById('emailSubject');
-      const messageInput = document.getElementById('emailMessage');
       if (subjectInput) subjectInput.value = '';
-      if (messageInput) messageInput.value = '';
-      updateEmailCharCount();
+      
+      // Get current user and populate message with signature
+      try {
+        const userInfo = await ZOHO.CRM.CONFIG.getCurrentUser();
+        console.log('Current user info:', userInfo);
+        
+        const userName = userInfo.full_name || userInfo.first_name || userInfo.last_name || 'Team';
+        const messageInput = document.getElementById('emailMessage');
+        
+        if (messageInput) {
+          // Generate signature HTML (without Thanks/name - those are added separately)
+          const signature = generateSignature();
+          // Pre-populate message with "Thanks," on one line and user name on next line, followed by signature
+          const messageText = `Thanks,\n${userName}\n\n${signature}`;
+          messageInput.value = messageText;
+          
+          // Update the preview div with rendered HTML
+          const previewDiv = document.getElementById('emailMessagePreview');
+          if (previewDiv) {
+            // Build HTML content: "Thanks," + userName + signature (no extra spacing)
+            const htmlContent = `Thanks,<br>${userName}<br>${signature}`;
+            previewDiv.innerHTML = htmlContent;
+            // Store HTML for email sending
+            messageInput.dataset.htmlContent = htmlContent;
+          }
+          
+          updateEmailCharCount();
+        }
+      } catch (error) {
+        console.error('Error fetching current user:', error);
+        // Fallback if user fetch fails
+        const messageInput = document.getElementById('emailMessage');
+        if (messageInput) {
+          const signature = generateSignature();
+          const messageText = `Thanks,\nTeam\n\n${signature}`;
+          messageInput.value = messageText;
+          
+          const previewDiv = document.getElementById('emailMessagePreview');
+          if (previewDiv) {
+            const htmlContent = `Thanks,<br>Team<br>${signature}`;
+            previewDiv.innerHTML = htmlContent;
+            messageInput.dataset.htmlContent = htmlContent;
+          }
+          
+          updateEmailCharCount();
+        }
+      }
     } else {
       console.error('Modal or recipient count element not found');
     }
+  }
+  
+  function generateSignature() {
+    // Generate signature HTML based on Signature.html template
+    // Removed "Thanks" and user name as they're added separately
+    return `<div style="font-family: Arial, Helvetica, serif, sans-serif; font-size: 12pt">
+<div><br></div>
+<div class="x_687415606zmail_signature_below">
+<div>
+<div><br></div>
+<div><a href="https://www.mybeautifulbathroom.co.uk/" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/My-Beautiful-Kitchen-Bathroom-Combined-PNG-LOGO-768x104.png" width="400" height="54"></a><br></div>
+<div><a href="https://www.facebook.com/MyBeautifulKitchenAndBathroom/" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/Facebook-48x48-1.png" width="48" height="48"></a>&nbsp;&nbsp;<a href="https://www.instagram.com/mybeautifulkitchenbathroom/" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/Instagram-48x48-1.png" width="48" height="48"></a>&nbsp;&nbsp;<a href="https://www.youtube.com/channel/UCIp8bBAsoJTIQlr9tO6LEwQ/featured" target="_blank"><img src="https://www.mybeautifulbathroom.co.uk/wp-content/uploads/2023/08/YouTube-48x48-1.png" width="48" height="48"></a><br></div>
+</div>
+</div>
+</div>`;
   }
   
   function closeSendEmailModal() {
@@ -3374,10 +3462,37 @@ function getWeekNumber(date) {
   }
   
   function updateEmailCharCount() {
-    const message = document.getElementById('emailMessage').value;
+    const previewDiv = document.getElementById('emailMessagePreview');
     const charCount = document.getElementById('emailCharCount');
-    if (charCount) {
-      charCount.textContent = `${message.length} characters`;
+    
+    if (previewDiv && charCount) {
+      // Get text content (without HTML tags for character count)
+      const textContent = previewDiv.innerText || previewDiv.textContent || '';
+      charCount.textContent = `${textContent.length} characters`;
+      
+      // Sync to hidden textarea
+      const messageTextarea = document.getElementById('emailMessage');
+      if (messageTextarea) {
+        messageTextarea.value = textContent;
+        // Store HTML content for email sending
+        messageTextarea.dataset.htmlContent = previewDiv.innerHTML;
+      }
+    }
+  }
+  
+  function syncPreviewToTextarea() {
+    const previewDiv = document.getElementById('emailMessagePreview');
+    const messageTextarea = document.getElementById('emailMessage');
+    
+    if (previewDiv && messageTextarea) {
+      // Get the HTML content from preview
+      const htmlContent = previewDiv.innerHTML;
+      // Get plain text for textarea
+      const textContent = previewDiv.innerText || previewDiv.textContent || '';
+      messageTextarea.value = textContent;
+      
+      // Store HTML separately for email sending
+      messageTextarea.dataset.htmlContent = htmlContent;
     }
   }
   
@@ -3409,25 +3524,32 @@ function getWeekNumber(date) {
     }
     
     const subject = document.getElementById('emailSubject').value.trim();
-    const message = document.getElementById('emailMessage').value.trim();
+    const messageTextarea = document.getElementById('emailMessage');
     
-    if (!subject || !message) {
+    // Get HTML content from preview (stored in dataset) or convert text
+    let messageWithBreaks = '';
+    if (messageTextarea && messageTextarea.dataset.htmlContent) {
+      // Use the stored HTML content from preview
+      messageWithBreaks = messageTextarea.dataset.htmlContent;
+    } else {
+      // Fallback: get text and convert line breaks
+      const message = messageTextarea ? messageTextarea.value.trim() : '';
+      messageWithBreaks = message.replace(/\n/g, '<br>');
+    }
+    
+    if (!subject || !messageWithBreaks || messageWithBreaks.trim() === '') {
       alert('Please fill in both subject and message.');
       return;
     }
-    
-    // Convert line breaks to <br> tags for HTML email
-    const messageWithBreaks = message.replace(/\n/g, '<br>');
     
     // Get emails as comma-separated string
     const emails = selectedFitters.map(f => f.email).join(',');
     
     console.log('📧 Preparing to send email...');
     console.log('Subject:', subject);
-    console.log('Message (original):', message);
     console.log('Recipients:', emails);
     console.log('Number of recipients:', selectedFitters.length);
-    console.log('Message (with breaks):', messageWithBreaks);
+    console.log('Message (HTML):', messageWithBreaks);
     
     const sendBtn = document.getElementById('submitSendEmail');
     if (!sendBtn) {
@@ -3462,7 +3584,15 @@ function getWeekNumber(date) {
         
         // Clear the form and close modal
         document.getElementById('emailSubject').value = '';
-        document.getElementById('emailMessage').value = '';
+        const messageTextarea = document.getElementById('emailMessage');
+        const previewDiv = document.getElementById('emailMessagePreview');
+        if (messageTextarea) {
+          messageTextarea.value = '';
+          messageTextarea.removeAttribute('data-html-content');
+        }
+        if (previewDiv) {
+          previewDiv.innerHTML = '';
+        }
         updateEmailCharCount();
         closeSendEmailModal();
         
