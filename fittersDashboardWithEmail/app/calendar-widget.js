@@ -3402,21 +3402,29 @@ function getWeekNumber(date) {
         const userInfo = await ZOHO.CRM.CONFIG.getCurrentUser();
         console.log('Current user info:', userInfo);
         
-        const userName = userInfo.full_name || userInfo.first_name || userInfo.last_name || 'Team';
+        // Extract user from the response structure: userInfo.info.users[0]
+        const user = userInfo?.info?.users?.[0] || userInfo?.users?.[0] || userInfo;
+        
+        // Try multiple sources for user name, with email as fallback before generic "Team"
+        const userName = user.full_name || 
+                        user.first_name || 
+                        user.last_name || 
+                        (user.email ? user.email.split('@')[0] : null) ||
+                        'Team';
         const messageInput = document.getElementById('emailMessage');
         
         if (messageInput) {
           // Generate signature HTML (without Thanks/name - those are added separately)
           const signature = generateSignature();
           // Pre-populate message: 2 blank lines, "Thanks," + userName + 2 blank lines + signature
-          const messageText = `\n\nThanks,\n${userName}\n\n${signature}`;
+          const messageText = `\n\nThanks,\n${userName}\n${signature}`;
           messageInput.value = messageText;
           
           // Update the preview div with rendered HTML
           const previewDiv = document.getElementById('emailMessagePreview');
           if (previewDiv) {
             // Build HTML content: 2 blank lines, then "Thanks," + userName + 2 blank lines + signature
-            const htmlContent = `<br><br>Thanks,<br>${userName}<br><br>${signature}`;
+            const htmlContent = `<br><br>Thanks,<br>${userName}<br>${signature}`;
             previewDiv.innerHTML = htmlContent;
             // Store HTML for email sending
             messageInput.dataset.htmlContent = htmlContent;
@@ -3424,23 +3432,50 @@ function getWeekNumber(date) {
           
           updateEmailCharCount();
         }
-      } catch (error) {
+        } catch (error) {
         console.error('Error fetching current user:', error);
-        // Fallback if user fetch fails
-        const messageInput = document.getElementById('emailMessage');
-        if (messageInput) {
-          const signature = generateSignature();
-          const messageText = `\n\nThanks,\nTeam\n\n${signature}`;
-          messageInput.value = messageText;
+        // Retry once to get user name, or use a better fallback
+        try {
+          const userInfo = await ZOHO.CRM.CONFIG.getCurrentUser();
+          // Extract user from the response structure: userInfo.info.users[0]
+          const user = userInfo?.info?.users?.[0] || userInfo?.users?.[0] || userInfo;
+          const userName = user.full_name || user.first_name || user.last_name || (user.email ? user.email.split('@')[0] : null) || 'Team';
           
-          const previewDiv = document.getElementById('emailMessagePreview');
-          if (previewDiv) {
-            const htmlContent = `<br><br>Thanks,<br>Team<br><br>${signature}`;
-            previewDiv.innerHTML = htmlContent;
-            messageInput.dataset.htmlContent = htmlContent;
+          const messageInput = document.getElementById('emailMessage');
+          if (messageInput) {
+            const signature = generateSignature();
+            const messageText = `\n\nThanks,\n${userName}\n${signature}`;
+            messageInput.value = messageText;
+            
+            const previewDiv = document.getElementById('emailMessagePreview');
+            if (previewDiv) {
+              const htmlContent = `<br><br>Thanks,<br>${userName}<br>${signature}`;
+              previewDiv.innerHTML = htmlContent;
+              messageInput.dataset.htmlContent = htmlContent;
+            }
+            
+            updateEmailCharCount();
           }
-          
-          updateEmailCharCount();
+        } catch (retryError) {
+          console.error('Retry also failed:', retryError);
+          // Last resort: try to get user from email or use generic fallback
+          const messageInput = document.getElementById('emailMessage');
+          if (messageInput) {
+            const signature = generateSignature();
+            // Try to extract name from any available source, or use a more generic fallback
+            const userName = 'Team';
+            const messageText = `\n\nThanks,\n${userName}\n${signature}`;
+            messageInput.value = messageText;
+            
+            const previewDiv = document.getElementById('emailMessagePreview');
+            if (previewDiv) {
+              const htmlContent = `<br><br>Thanks,<br>${userName}<br>${signature}`;
+              previewDiv.innerHTML = htmlContent;
+              messageInput.dataset.htmlContent = htmlContent;
+            }
+            
+            updateEmailCharCount();
+          }
         }
       }
     } else {
