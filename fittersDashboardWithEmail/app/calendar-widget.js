@@ -436,6 +436,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sendEmailModal && sendEmailModal.style.display === 'block') {
           closeSendEmailModal();
         }
+        const sendSMSModal = document.getElementById('sendSMSModal');
+        if (sendSMSModal && sendSMSModal.style.display === 'block') {
+          closeSendSMSModal();
+        }
       }
     });
     
@@ -535,6 +539,54 @@ document.addEventListener('DOMContentLoaded', function() {
         });
       }
     }, 900);
+    
+    // SMS modal event listeners - only set up once
+    setTimeout(() => {
+      const closeSendSMSModalBtn = document.getElementById('closeSendSMSModal');
+      const cancelSendSMSBtn = document.getElementById('cancelSendSMS');
+      const sendSMSForm = document.getElementById('sendSMSForm');
+      const smsMessage = document.getElementById('smsMessage');
+      const sendSMSModal = document.getElementById('sendSMSModal');
+      
+      // Only set up listeners if they haven't been set up yet
+      if (closeSendSMSModalBtn && !closeSendSMSModalBtn.hasAttribute('data-listener-attached')) {
+        closeSendSMSModalBtn.setAttribute('data-listener-attached', 'true');
+        closeSendSMSModalBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closeSendSMSModal();
+        });
+      }
+      
+      if (cancelSendSMSBtn && !cancelSendSMSBtn.hasAttribute('data-listener-attached')) {
+        cancelSendSMSBtn.setAttribute('data-listener-attached', 'true');
+        cancelSendSMSBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closeSendSMSModal();
+        });
+      }
+      
+      if (sendSMSForm && !sendSMSForm.hasAttribute('data-listener-attached')) {
+        sendSMSForm.setAttribute('data-listener-attached', 'true');
+        sendSMSForm.addEventListener('submit', sendSMSToFitters);
+      }
+      
+      if (smsMessage && !smsMessage.hasAttribute('data-listener-attached')) {
+        smsMessage.setAttribute('data-listener-attached', 'true');
+        smsMessage.addEventListener('input', updateSMSCharCount);
+      }
+      
+      // Close modal when clicking outside
+      if (sendSMSModal && !sendSMSModal.hasAttribute('data-listener-attached')) {
+        sendSMSModal.setAttribute('data-listener-attached', 'true');
+        sendSMSModal.addEventListener('click', function(e) {
+          if (e.target === this) {
+            closeSendSMSModal();
+          }
+        });
+      }
+    }, 1000);
   }
   
   // =============================================
@@ -1067,7 +1119,7 @@ function getWeekNumber(date) {
         lastName: fitter.Last_Name || '',
         name: `${fitter.First_Name || ''} ${fitter.Last_Name || ''}`.trim(),
         email: fitter.Email || '',
-        phone: fitter.Home_Phone || fitter.Mobile || '',
+        phone: (fitter.Home_Phone || fitter.Mobile || '').trim(),
         skillset: skillsetData,
         skillsShortage: fitter.Skills_They_Can_t_Do || '',
         postcodesCovered: fitter.Postcode_Area_New || '',
@@ -3212,7 +3264,7 @@ function getWeekNumber(date) {
       return `
       <tr>
         <td>
-          <input type="checkbox" class="fitter-checkbox" data-fitter-id="${fitter.id}" data-fitter-email="${fitter.email || ''}" data-fitter-name="${fitter.name}">
+          <input type="checkbox" class="fitter-checkbox" data-fitter-id="${fitter.id}" data-fitter-email="${fitter.email || ''}" data-fitter-phone="${fitter.phone || ''}" data-fitter-name="${fitter.name}" data-fitter-lead-id="${fitter.leadId || ''}">
         </td>
         <td>
           <div class="action-buttons">
@@ -3286,6 +3338,7 @@ function getWeekNumber(date) {
           checkbox.checked = this.checked;
         });
         updateSendEmailButton();
+        updateSendSMSButton();
       });
     }
     
@@ -3295,6 +3348,7 @@ function getWeekNumber(date) {
       checkbox.addEventListener('change', function() {
         updateSelectAllCheckbox();
         updateSendEmailButton();
+        updateSendSMSButton();
       });
     });
     
@@ -3315,8 +3369,31 @@ function getWeekNumber(date) {
       console.warn('Send Email button not found');
     }
     
+    // Send SMS button - ensure it only has one listener
+    const sendSMSBtn = document.getElementById('sendSMSBtn');
+    if (sendSMSBtn) {
+      if (!sendSMSBtn.hasAttribute('data-sms-listener-attached')) {
+        sendSMSBtn.setAttribute('data-sms-listener-attached', 'true');
+        sendSMSBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('Send SMS button clicked');
+          openSendSMSModal();
+        });
+        console.log('Send SMS button listener attached');
+      }
+    } else {
+      console.warn('Send SMS button not found');
+    }
+    
     // Update button state initially
     updateSendEmailButton();
+    updateSendSMSButton();
+    
+    // Also update SMS button after table is populated (in case checkboxes were already checked)
+    setTimeout(() => {
+      updateSendSMSButton();
+    }, 100);
   }
   
   function updateSelectAllCheckbox() {
@@ -3348,6 +3425,55 @@ function getWeekNumber(date) {
     }
   }
   
+  function updateSendSMSButton() {
+    const sendSMSBtn = document.getElementById('sendSMSBtn');
+    const checkboxes = document.querySelectorAll('.fitter-checkbox:checked');
+    let selectedCount = 0;
+    let missingPhones = [];
+    checkboxes.forEach(checkbox => {
+      const phone = checkbox.getAttribute('data-fitter-phone');
+      const name = checkbox.getAttribute('data-fitter-name');
+      if (phone && phone.trim() !== '') {
+        selectedCount++;
+      } else {
+        // Track fitters without phone numbers for debugging
+        missingPhones.push(name || 'Unknown');
+      }
+    });
+    
+    // Debug logging - show detailed info when all are selected
+    if (checkboxes.length >= 30) { // Log when many are selected (likely "select all")
+      console.log(`📊 SMS Button Update: ${checkboxes.length} selected, ${selectedCount} with phones, ${missingPhones.length} without phones`);
+      if (missingPhones.length > 0) {
+        console.log('Fitters without phone numbers:', missingPhones);
+      }
+      // Log all phone values for debugging
+      const allPhones = [];
+      checkboxes.forEach(checkbox => {
+        const phone = checkbox.getAttribute('data-fitter-phone');
+        const name = checkbox.getAttribute('data-fitter-name');
+        allPhones.push({ name, phone: phone || '(empty)', phoneLength: phone ? phone.length : 0 });
+      });
+      console.log('All fitters with phone data:', allPhones);
+    }
+    
+    if (sendSMSBtn) {
+      // Enable button if any fitter row is selected (we'll validate phone numbers when sending)
+      const anySelected = checkboxes.length > 0;
+      sendSMSBtn.disabled = !anySelected;
+      sendSMSBtn.textContent = anySelected ? (selectedCount > 0 ? `Send Text (${selectedCount})` : 'Send Text') : 'Send Text';
+      
+      // Add visual styling for disabled state
+      if (sendSMSBtn.disabled) {
+        sendSMSBtn.style.opacity = '0.6';
+        sendSMSBtn.style.cursor = 'not-allowed';
+      } else {
+        sendSMSBtn.style.opacity = '1';
+        sendSMSBtn.style.cursor = 'pointer';
+      }
+    }
+  }
+  
   function getSelectedFitters() {
     const checkboxes = document.querySelectorAll('.fitter-checkbox:checked');
     const selectedFitters = [];
@@ -3359,6 +3485,25 @@ function getWeekNumber(date) {
           id: checkbox.getAttribute('data-fitter-id'),
           email: email.trim(),
           name: name
+        });
+      }
+    });
+    return selectedFitters;
+  }
+  
+  function getSelectedFittersForSMS() {
+    const checkboxes = document.querySelectorAll('.fitter-checkbox:checked');
+    const selectedFitters = [];
+    checkboxes.forEach(checkbox => {
+      const phone = checkbox.getAttribute('data-fitter-phone');
+      const name = checkbox.getAttribute('data-fitter-name');
+      const leadId = checkbox.getAttribute('data-fitter-lead-id');
+      if (phone && phone.trim() !== '') {
+        selectedFitters.push({
+          id: checkbox.getAttribute('data-fitter-id'),
+          phone: phone.trim(),
+          name: name,
+          leadId: leadId || ''
         });
       }
     });
@@ -3537,6 +3682,198 @@ function getWeekNumber(date) {
     }
   }
   
+  // =============================================
+  // Send SMS Functionality
+  // =============================================
+  
+  async function openSendSMSModal() {
+    const selectedFitters = getSelectedFittersForSMS();
+    
+    if (selectedFitters.length === 0) {
+      alert('Please select at least one fitter with a phone number.');
+      return;
+    }
+    
+    const modal = document.getElementById('sendSMSModal');
+    const recipientCount = document.getElementById('smsRecipientCount');
+    
+    if (!modal) {
+      console.error('Send SMS modal not found!');
+      alert('SMS modal not found. Please refresh the page.');
+      return;
+    }
+    
+    if (!recipientCount) {
+      console.error('Recipient count element not found!');
+    }
+    
+    if (modal && recipientCount) {
+      recipientCount.textContent = `${selectedFitters.length} ${selectedFitters.length === 1 ? 'fitter' : 'fitters'}`;
+      modal.style.display = 'block';
+      
+      // Clear message
+      const messageInput = document.getElementById('smsMessage');
+      if (messageInput) {
+        messageInput.value = '';
+      }
+      updateSMSCharCount();
+    } else {
+      console.error('Modal or recipient count element not found');
+    }
+  }
+  
+  function closeSendSMSModal() {
+    const modal = document.getElementById('sendSMSModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+  
+  function updateSMSCharCount() {
+    const messageInput = document.getElementById('smsMessage');
+    const charCount = document.getElementById('smsCharCount');
+    
+    if (messageInput && charCount) {
+      const textContent = messageInput.value || '';
+      charCount.textContent = `${textContent.length} characters`;
+    }
+  }
+  
+  async function sendSMSToFitters(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    // Check if ZOHO SDK is available
+    if (typeof ZOHO === 'undefined') {
+      alert('Zoho CRM SDK is not available. Please ensure you are running this widget within Zoho CRM.');
+      console.error('ZOHO object not defined');
+      return;
+    }
+    
+    if (!ZOHO.CRM || !ZOHO.CRM.FUNCTIONS) {
+      alert('Zoho CRM API is not available. Please ensure you are running this widget within Zoho CRM.');
+      console.error('ZOHO.CRM.FUNCTIONS not available', ZOHO);
+      return;
+    }
+    
+    const selectedFitters = getSelectedFittersForSMS();
+    if (selectedFitters.length === 0) {
+      alert('Please select at least one fitter with a phone number.');
+      return;
+    }
+    
+    const messageInput = document.getElementById('smsMessage');
+    const message = messageInput ? messageInput.value.trim() : '';
+    
+    if (!message || message === '') {
+      alert('Please enter a message.');
+      return;
+    }
+    
+    const sendBtn = document.getElementById('submitSendSMS');
+    if (!sendBtn) {
+      console.error('Send SMS button not found');
+      return;
+    }
+    
+    const originalText = sendBtn.innerHTML;
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = 'Sending...';
+    
+    // Function name
+    const funcName = 'send_workflow_twilio_text1';
+    
+    const responses = [];
+    let successCount = 0;
+    let failureCount = 0;
+    
+    try {
+      // Send SMS to each fitter individually
+      for (const fitter of selectedFitters) {
+        if (!fitter.phone || fitter.phone.trim() === '') {
+          responses.push({
+            fitter: fitter.name,
+            success: false,
+            error: 'No phone number associated'
+          });
+          failureCount++;
+          continue;
+        }
+        
+        if (!fitter.leadId || fitter.leadId.trim() === '') {
+          responses.push({
+            fitter: fitter.name,
+            success: false,
+            error: 'No Lead ID associated'
+          });
+          failureCount++;
+          continue;
+        }
+        
+        try {
+          // Use fitter's phone number from the table row
+          const mobileNumber = fitter.phone.trim();
+          
+          // Prepare function arguments
+          const reqData = {
+            "arguments": JSON.stringify({
+              "mobile": mobileNumber,
+              "party": fitter.leadId,
+              "message_body": message
+            })
+          };
+          
+          const response = await ZOHO.CRM.FUNCTIONS.execute(funcName, reqData);
+          
+          responses.push({
+            fitter: fitter.name,
+            success: response && response.code === 'success',
+            response: response
+          });
+          
+          if (response && response.code === 'success') {
+            successCount++;
+          } else {
+            failureCount++;
+          }
+        } catch (error) {
+          responses.push({
+            fitter: fitter.name,
+            success: false,
+            error: error.message || error.toString()
+          });
+          failureCount++;
+        }
+      }
+      
+      // If all succeeded, clear form and close modal
+      if (failureCount === 0 && successCount > 0) {
+        if (messageInput) {
+          messageInput.value = '';
+        }
+        updateSMSCharCount();
+        closeSendSMSModal();
+        
+        // Uncheck all checkboxes
+        document.querySelectorAll('.fitter-checkbox').forEach(cb => cb.checked = false);
+        const selectAllCheckbox = document.getElementById('selectAllFitters');
+        if (selectAllCheckbox) {
+          selectAllCheckbox.checked = false;
+          selectAllCheckbox.indeterminate = false;
+        }
+        updateSendSMSButton();
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in sendSMSToFitters:', error);
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.innerHTML = originalText;
+    }
+  }
+  
   async function sendEmailToFitters(event) {
     console.log('sendEmailToFitters called', event);
     
@@ -3645,6 +3982,7 @@ function getWeekNumber(date) {
           selectAllCheckbox.indeterminate = false;
         }
         updateSendEmailButton();
+        updateSendSMSButton();
       } else {
         const errorMsg = response && response.message ? response.message : 'Unknown error';
         console.error('Failed to send emails:', errorMsg, response);
@@ -4276,4 +4614,5 @@ function getWeekNumber(date) {
     loadCalendarData();
   };
   
+  console.log('Fitters Dashboard Calendar Widget: Loaded successfully');
   console.log('Fitters Dashboard Calendar Widget: Loaded successfully');

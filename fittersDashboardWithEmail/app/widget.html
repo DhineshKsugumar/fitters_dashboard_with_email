@@ -186,6 +186,11 @@
                 Send Email
               </button>
             </div>
+            <div class="fitter-filter-group">
+              <button class="btn btn-primary" id="sendSMSBtn" style="padding: 10px 20px; font-size: 14px;" disabled>
+                Send Text
+              </button>
+            </div>
           </div>
           
           <div class="fitters-table-container">
@@ -356,6 +361,33 @@
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" id="cancelSendEmail">Cancel</button>
               <button type="submit" class="btn btn-primary" id="submitSendEmail">Send Email</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Send SMS Modal -->
+    <div id="sendSMSModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="sendSMSModalTitle">Send Text to Fitters</h3>
+          <button class="close-btn" id="closeSendSMSModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="recipient-info" style="padding: 12px; background-color: #f8f9fa; border-radius: 4px; margin-bottom: 20px;">
+            <strong>Recipients:</strong> <span id="smsRecipientCount">0 fitters</span>
+          </div>
+          <form id="sendSMSForm">
+            <div class="form-group">
+              <label for="smsMessage">Message:</label>
+              <textarea id="smsMessage" class="form-control" rows="8" placeholder="Type your message here..." required></textarea>
+              <div class="character-count" id="smsCharCount" style="font-size: 0.75rem; color: #6b7280; text-align: right; margin-top: 0.25rem;">0 characters</div>
+            </div>
+            
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" id="cancelSendSMS">Cancel</button>
+              <button type="submit" class="btn btn-primary" id="submitSendSMS">Send Text</button>
             </div>
           </form>
         </div>
