@@ -3625,8 +3625,8 @@ function getWeekNumber(date) {
           // Update the preview div with rendered HTML
           const previewDiv = document.getElementById('emailMessagePreview');
           if (previewDiv) {
-            // Build HTML content: 2 blank lines, then "Thanks," + userName + 2 blank lines + signature
-            const htmlContent = `<br><br>Thanks,<br>${userName}<br>${signature}`;
+            // Build HTML content: 2 blank lines, then "Thanks," + userName + 2 blank lines + extra br + signature
+            const htmlContent = `<br><br>Thanks,<br>${userName}<br><br>${signature}`;
             previewDiv.innerHTML = htmlContent;
             // Store HTML for email sending
             messageInput.dataset.htmlContent = htmlContent;
@@ -3651,7 +3651,7 @@ function getWeekNumber(date) {
             
             const previewDiv = document.getElementById('emailMessagePreview');
             if (previewDiv) {
-              const htmlContent = `<br><br>Thanks,<br>${userName}<br>${signature}`;
+              const htmlContent = `<br><br>Thanks,<br>${userName}<br><br>${signature}`;
               previewDiv.innerHTML = htmlContent;
               messageInput.dataset.htmlContent = htmlContent;
             }
@@ -3671,7 +3671,7 @@ function getWeekNumber(date) {
             
             const previewDiv = document.getElementById('emailMessagePreview');
             if (previewDiv) {
-              const htmlContent = `<br><br>Thanks,<br>${userName}<br>${signature}`;
+              const htmlContent = `<br><br>Thanks,<br>${userName}<br><br>${signature}`;
               previewDiv.innerHTML = htmlContent;
               messageInput.dataset.htmlContent = htmlContent;
             }
@@ -3905,8 +3905,19 @@ function getWeekNumber(date) {
         }
       }
       
-      // If all succeeded, clear form and close modal
+      // If all succeeded, show success alert, clear form and close modal
       if (failureCount === 0 && successCount > 0) {
+        // Show green success alert
+        const alertDiv = document.createElement('div');
+        alertDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background-color: #10b981; color: white; padding: 16px 24px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); z-index: 10000; font-weight: 500; font-size: 14px;';
+        alertDiv.textContent = 'Text message sent successfully!';
+        document.body.appendChild(alertDiv);
+        
+        // Remove alert after 3 seconds
+        setTimeout(() => {
+          alertDiv.remove();
+        }, 3000);
+        
         if (messageInput) {
           messageInput.value = '';
         }
