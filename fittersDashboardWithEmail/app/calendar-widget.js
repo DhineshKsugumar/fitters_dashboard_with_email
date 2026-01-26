@@ -1094,7 +1094,17 @@ function getWeekNumber(date) {
     // Process fitters from Contacts module
     fitters = [];
     
+    // Track processed fitter IDs to prevent duplicates
+    const processedFitterIds = new Set();
+    
     for (const fitter of fittersResponse.data || []) {
+      // Skip if we've already processed this fitter ID
+      if (processedFitterIds.has(fitter.id)) {
+        console.log(`Skipping duplicate fitter: ${fitter.First_Name} ${fitter.Last_Name} (ID: ${fitter.id})`);
+        continue;
+      }
+      
+      processedFitterIds.add(fitter.id);
       console.log(`Processing fitter: ${fitter.First_Name} ${fitter.Last_Name}`);
       
       // Handle skillset data - it can be an array or string
@@ -1113,13 +1123,38 @@ function getWeekNumber(date) {
         }
       }
       
+      // Get phone from Contact first
+      let phone = (fitter.Home_Phone || fitter.Mobile || '').trim();
+      
+      // If phone is empty and we have a Lead ID, fetch phone from Lead record
+      if ((!phone || phone === '') && leadId) {
+        try {
+          console.log(`Fetching phone from Lead ${leadId} for fitter ${fitter.First_Name} ${fitter.Last_Name}`);
+          const leadResponse = await ZOHO.CRM.API.getRecord({
+            Entity: "Leads",
+            RecordID: leadId
+          });
+          
+          if (leadResponse && leadResponse.data && leadResponse.data.length > 0) {
+            const leadData = leadResponse.data[0];
+            phone = (leadData.Phone || leadData.Mobile || '').trim();
+            if (phone) {
+              console.log(`Found phone ${phone} from Lead ${leadId}`);
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch phone from Lead ${leadId}:`, error);
+          // Continue without phone - don't block processing
+        }
+      }
+      
       const fitterData = {
         id: fitter.id,
         firstName: fitter.First_Name || '',
         lastName: fitter.Last_Name || '',
         name: `${fitter.First_Name || ''} ${fitter.Last_Name || ''}`.trim(),
         email: fitter.Email || '',
-        phone: (fitter.Home_Phone || fitter.Mobile || '').trim(),
+        phone: phone,
         skillset: skillsetData,
         skillsShortage: fitter.Skills_They_Can_t_Do || '',
         postcodesCovered: fitter.Postcode_Area_New || '',
@@ -1133,14 +1168,24 @@ function getWeekNumber(date) {
       };
       
       fitters.push(fitterData);
-      console.log(`Fitter ${fitterData.name} processed with skillset: ${fitterData.skillset}`);
+      console.log(`Fitter ${fitterData.name} processed with skillset: ${fitterData.skillset}, phone: ${fitterData.phone || 'none'}`);
     }
     
-    console.log(`Processed ${fitters.length} fitters`);
-    console.log(`Sample fitter:`, fitters[0]);
+    // Final deduplication before storing (in case duplicates somehow got through)
+    const finalUniqueFitters = [];
+    const finalUniqueIds = new Set();
+    for (const fitter of fitters) {
+      if (!finalUniqueIds.has(fitter.id)) {
+        finalUniqueIds.add(fitter.id);
+        finalUniqueFitters.push(fitter);
+      }
+    }
+    
+    console.log(`Processed ${fitters.length} fitters, ${finalUniqueFitters.length} unique`);
+    console.log(`Sample fitter:`, finalUniqueFitters[0]);
     
     // Store fitters in window object for access by fitters view
-    window.fitters = fitters;
+    window.fitters = finalUniqueFitters;
     console.log('Stored fitters in window.fitters:', window.fitters.length);
   }
   
@@ -3216,8 +3261,17 @@ function getWeekNumber(date) {
     // Don't update input display here - let the user type freely
     // Only update when a selection is made from dropdown (handled in populateFitterDropdown)
     
+    // Deduplicate fitters by ID first
+    const uniqueFittersMap = new Map();
+    for (const fitter of fitters) {
+      if (!uniqueFittersMap.has(fitter.id)) {
+        uniqueFittersMap.set(fitter.id, fitter);
+      }
+    }
+    const uniqueFitters = Array.from(uniqueFittersMap.values());
+    
     // Sort fitters alphabetically by name
-    let filteredFitters = [...fitters].sort((a, b) => {
+    let filteredFitters = [...uniqueFitters].sort((a, b) => {
       const nameA = a.name.toLowerCase();
       const nameB = b.name.toLowerCase();
       return nameA.localeCompare(nameB);
@@ -3234,6 +3288,9 @@ function getWeekNumber(date) {
     }
     
     fittersCount.textContent = `Showing ${filteredFitters.length} fitters`;
+    
+    // Clear table body first to prevent duplicates
+    fittersTableBody.innerHTML = '';
     
     if (filteredFitters.length === 0) {
       fittersTableBody.innerHTML = '<tr><td colspan="13" style="text-align: center; padding: 2rem;">No fitters found</td></tr>';
