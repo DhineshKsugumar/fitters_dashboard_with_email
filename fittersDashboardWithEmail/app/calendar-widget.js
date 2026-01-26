@@ -1862,8 +1862,17 @@ function getWeekNumber(date) {
   // Filter fitters based on current filters
   const filteredFitters = filterFitters();
   
+  // Deduplicate fitters by ID
+  const uniqueFittersMap = new Map();
+  for (const fitter of filteredFitters) {
+    if (!uniqueFittersMap.has(fitter.id)) {
+      uniqueFittersMap.set(fitter.id, fitter);
+    }
+  }
+  const uniqueFitters = Array.from(uniqueFittersMap.values());
+  
   // Sort fitters with special order: Unassigned Fitter, Supply Only, then alphabetical
-  const sortedFitters = filteredFitters.sort((a, b) => {
+  const sortedFitters = uniqueFitters.sort((a, b) => {
     // Special cases first
     if (a.name === 'Unassigned Fitter' && b.name !== 'Unassigned Fitter') return -1;
     if (b.name === 'Unassigned Fitter' && a.name !== 'Unassigned Fitter') return 1;
