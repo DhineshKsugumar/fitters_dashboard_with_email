@@ -4138,7 +4138,7 @@ function getWeekNumber(date) {
   // Edit Fitter Modal Functionality
   // =============================================
   
-  window.openEditFitterModal = function(fitterId, fitterName, skillsetJson, skillsShortageJson, postcodeArea, workConsistency, insuranceNumber, insuranceDate) {
+  window.openEditFitterModal = async function(fitterId, fitterName, skillsetJson, skillsShortageJson, postcodeArea, workConsistency, insuranceNumber, insuranceDate) {
     const modal = document.getElementById('editFitterModal');
     const nameInput = document.getElementById('editFitterName');
     const skillsetSelected = document.getElementById('editSkillsetSelected');
@@ -4147,8 +4147,9 @@ function getWeekNumber(date) {
     const workConsistencySelect = document.getElementById('editFitterWorkConsistency');
     const insuranceNumberInput = document.getElementById('editFitterInsuranceNumber');
     const insuranceDateInput = document.getElementById('editFitterInsuranceDate');
+    const insuranceImagePreview = document.getElementById('insuranceImagePreview');
     
-    if (!modal || !nameInput || !skillsetSelected || !skillsShortageSelected || !postcodeInput || !workConsistencySelect || !insuranceNumberInput || !insuranceDateInput) {
+    if (!modal || !nameInput || !skillsetSelected || !skillsShortageSelected || !postcodeInput || !workConsistencySelect || !insuranceNumberInput || !insuranceDateInput || !insuranceImagePreview) {
       console.error('Edit modal elements not found!');
       return;
     }
@@ -4182,6 +4183,193 @@ function getWeekNumber(date) {
       insuranceDateInput.value = '';
     }
     
+    // Show loading state for image
+    insuranceImagePreview.innerHTML = '<span style="color: #6b7280; font-size: 0.875rem;">Loading image...</span>';
+    
+    // Fetch File_Upload_1 from the specific contact record
+    let fileUploadUrl = '';
+    let downloadUrl = '';
+    let previewUrl = '';
+    try {
+      console.log(`Fetching File_Upload_1 for contact ${fitterId}`);
+      const contactResponse = await ZOHO.CRM.API.getRecord({
+        Entity: "Contacts",
+        RecordID: fitterId
+      });
+      
+      if (contactResponse && contactResponse.data && contactResponse.data.length > 0) {
+        const contactData = contactResponse.data[0];
+        const fileUpload = contactData.File_Upload_1;
+        
+        console.log('File_Upload_1 data:', fileUpload);
+        
+        // Extract file upload URLs - handle different formats
+        if (fileUpload) {
+          let firstFile = null;
+          
+          if (typeof fileUpload === 'string') {
+            fileUploadUrl = fileUpload;
+            downloadUrl = fileUpload;
+            previewUrl = fileUpload;
+          } else if (Array.isArray(fileUpload) && fileUpload.length > 0) {
+            // Handle array format - get the first file object
+            firstFile = fileUpload[0];
+          } else {
+            firstFile = fileUpload;
+          }
+          
+          if (firstFile) {
+            // Extract download URL (for download button)
+            downloadUrl = firstFile.download_Url || firstFile.download_url || '';
+            // Extract preview URL (for image display and open in new tab)
+            previewUrl = firstFile.preview_Url || firstFile.preview_url || downloadUrl || '';
+            // Use preview URL for image display, fallback to download URL
+            fileUploadUrl = previewUrl || downloadUrl || firstFile.url || firstFile.id || '';
+          } else if (fileUpload.download_Url || fileUpload.download_url) {
+            downloadUrl = fileUpload.download_Url || fileUpload.download_url;
+            fileUploadUrl = downloadUrl;
+          } else if (fileUpload.preview_Url || fileUpload.preview_url) {
+            previewUrl = fileUpload.preview_Url || fileUpload.preview_url;
+            fileUploadUrl = previewUrl;
+          } else if (fileUpload.id) {
+            fileUploadUrl = fileUpload.id;
+            downloadUrl = fileUpload.id;
+            previewUrl = fileUpload.id;
+          } else if (fileUpload.url) {
+            fileUploadUrl = fileUpload.url;
+            downloadUrl = fileUpload.url;
+            previewUrl = fileUpload.url;
+          }
+        }
+        
+        // Ensure we have string URLs
+        if (fileUploadUrl && typeof fileUploadUrl !== 'string') {
+          fileUploadUrl = '';
+        }
+        if (downloadUrl && typeof downloadUrl !== 'string') {
+          downloadUrl = '';
+        }
+        if (previewUrl && typeof previewUrl !== 'string') {
+          previewUrl = '';
+        }
+        
+        // Prepend base URL if it's a relative path
+        const baseUrl = 'https://crm.zoho.com';
+        if (fileUploadUrl && fileUploadUrl.trim() !== '' && fileUploadUrl.startsWith('/')) {
+          fileUploadUrl = baseUrl + fileUploadUrl;
+        }
+        if (downloadUrl && downloadUrl.trim() !== '' && downloadUrl.startsWith('/')) {
+          downloadUrl = baseUrl + downloadUrl;
+        }
+        if (previewUrl && previewUrl.trim() !== '' && previewUrl.startsWith('/')) {
+          previewUrl = baseUrl + previewUrl;
+        }
+        
+        console.log('Extracted file upload URL:', fileUploadUrl);
+        console.log('Download URL:', downloadUrl);
+        console.log('Preview URL:', previewUrl);
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch File_Upload_1 for contact ${fitterId}:`, error);
+      // Continue without image - don't block modal display
+    }
+    
+    // Display insurance image preview
+    if (fileUploadUrl && typeof fileUploadUrl === 'string' && fileUploadUrl.trim() !== '') {
+      console.log('Displaying insurance image with URL:', fileUploadUrl);
+      const hasDownloadUrl = downloadUrl && downloadUrl.trim() !== '';
+      const hasPreviewUrl = previewUrl && previewUrl.trim() !== '';
+      const openUrl = previewUrl || downloadUrl || fileUploadUrl;
+      
+      // Generate unique IDs for this image instance
+      const imageId = `insuranceImage_${fitterId}_${Date.now()}`;
+      const zoomContainerId = `zoomContainer_${fitterId}_${Date.now()}`;
+      
+      insuranceImagePreview.innerHTML = `
+        <div style="text-align: center;">
+          <div id="${zoomContainerId}" style="overflow: hidden; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: inline-block; max-width: 100%;">
+            <img id="${imageId}" src="${fileUploadUrl}" alt="Insurance Image" style="max-width: 100%; max-height: 300px; display: block; transition: transform 0.2s ease; transform-origin: center center;" onerror="this.parentElement.innerHTML='<span style=\\'color: #dc2626; font-size: 0.875rem;\\'>Failed to load image</span>'">
+          </div>
+          <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: center; align-items: center;">
+            <button id="zoomOut_${imageId}" type="button" style="padding: 0.5rem 0.75rem; background-color: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; font-weight: 600; min-width: 40px;">-</button>
+            <button id="zoomReset_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #9ca3af; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Reset</button>
+            <button id="zoomIn_${imageId}" type="button" style="padding: 0.5rem 0.75rem; background-color: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; font-weight: 600; min-width: 40px;">+</button>
+          </div>
+          <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; justify-content: center;">
+            ${hasDownloadUrl ? `<button id="downloadBtn_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Download</button>` : ''}
+            ${hasPreviewUrl || hasDownloadUrl ? `<button id="openTabBtn_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Open in New Tab</button>` : ''}
+          </div>
+        </div>
+      `;
+      
+      // Set up zoom functionality
+      let currentZoom = 1;
+      const minZoom = 0.5;
+      const maxZoom = 3;
+      const zoomStep = 0.25;
+      
+      const imgElement = document.getElementById(imageId);
+      const zoomOutBtn = document.getElementById(`zoomOut_${imageId}`);
+      const zoomInBtn = document.getElementById(`zoomIn_${imageId}`);
+      const zoomResetBtn = document.getElementById(`zoomReset_${imageId}`);
+      const downloadBtn = document.getElementById(`downloadBtn_${imageId}`);
+      const openTabBtn = document.getElementById(`openTabBtn_${imageId}`);
+      
+      const updateZoom = (newZoom) => {
+        currentZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
+        imgElement.style.transform = `scale(${currentZoom})`;
+        imgElement.style.maxWidth = currentZoom === 1 ? '100%' : `${100 * currentZoom}%`;
+        imgElement.style.maxHeight = currentZoom === 1 ? '300px' : `${300 * currentZoom}px`;
+        
+        // Update button states
+        zoomOutBtn.disabled = currentZoom <= minZoom;
+        zoomInBtn.disabled = currentZoom >= maxZoom;
+        zoomOutBtn.style.opacity = currentZoom <= minZoom ? '0.5' : '1';
+        zoomInBtn.style.opacity = currentZoom >= maxZoom ? '0.5' : '1';
+      };
+      
+      // Zoom event handlers
+      zoomOutBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        updateZoom(currentZoom - zoomStep);
+      });
+      
+      zoomInBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        updateZoom(currentZoom + zoomStep);
+      });
+      
+      zoomResetBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        updateZoom(1);
+      });
+      
+      // Download and Open button handlers
+      if (downloadBtn) {
+        downloadBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(downloadUrl, '_blank');
+        });
+      }
+      
+      if (openTabBtn) {
+        openTabBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(openUrl, '_blank');
+        });
+      }
+      
+      // Initialize zoom state
+      updateZoom(1);
+    } else {
+      insuranceImagePreview.innerHTML = '<span style="color: #6b7280; font-size: 0.875rem;">No image available</span>';
+    }
+    
     // Store current fitter data
     window.currentEditingFitter = {
       id: fitterId,
@@ -4191,7 +4379,8 @@ function getWeekNumber(date) {
       postcodeArea: postcodeArea || '',
       workConsistency: workConsistency || '',
       insuranceNumber: insuranceNumber || '',
-      insuranceDate: insuranceDate || ''
+      insuranceDate: insuranceDate || '',
+      fileUpload1: fileUploadUrl
     };
     
     // Populate multiselects
