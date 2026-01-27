@@ -1038,7 +1038,7 @@ function getWeekNumber(date) {
       
       // Use COQL to filter orders within the specified date range using Start_Date
       const coqlQuery = {
-        "select_query": `select id,Fitter,Lead,Job_Type,Start_Date,Customer_Name,Postcode,Street,Mobile,Showroom,Designer,Surveyor,Grand_Total,Balance from Ordering where Start_Date >= '${startDate}' and Start_Date <= '${endDate}' limit 200 offset ${(currentPage - 1) * 200}`
+        "select_query": `select id,Fitter,Lead,Job_Type,Start_Date,Customer_Name,Postcode,Street,Mobile,Showroom,Designer,Surveyor,Grand_Total,Balance,Quote_Lookup from Ordering where Start_Date >= '${startDate}' and Start_Date <= '${endDate}' limit 200 offset ${(currentPage - 1) * 200}`
       };
       
       console.log(`COQL Query page ${currentPage}:`, coqlQuery);
@@ -1217,6 +1217,12 @@ function getWeekNumber(date) {
     
     console.log(`Processing order: ${order.id}, Fitter ID: ${fitterId}, Customer: ${customerName}`);
     
+    // Get Job Type
+    const jobType = order.Job_Type || 'Installation';
+    
+    // Extract Quote ID from Quote_Lookup (store it for later fetching when popup opens)
+    const quoteId = order.Quote_Lookup?.id || order.Quote_Lookup || null;
+    
     // Use Start_Date from the order
     let orderDate = order.Start_Date;
     
@@ -1237,11 +1243,12 @@ function getWeekNumber(date) {
     
     return {
       id: order.id,
-      title: `${customerName} - ${order.Job_Type || 'Installation'}`,
+      title: `${customerName} - ${jobType}`,
       fitterId: fitterId,
       fitterName: fitter?.name || `Fitter ${fitterId}`,
       customerName: customerName,
-      jobType: order.Job_Type || 'Installation',
+      jobType: jobType,
+      quoteId: quoteId, // Store quote ID for fetching nickname when popup opens
       postcode: processedPostcode,
       address: order.Street || '',
       mobile: order.Mobile || '',
@@ -2711,6 +2718,42 @@ function getWeekNumber(date) {
     // Set modal title
     modalTitle.textContent = 'Project Details';
     
+    // Fetch nickname from Quote if quoteId exists
+    let nickname = '';
+    let projectTypeDisplay = getDisplayValue(order.jobType);
+    
+    if (order.quoteId) {
+      try {
+        console.log(`Fetching Quote ${order.quoteId} for nickname`);
+        const quoteResponse = await ZOHO.CRM.API.getRecord({
+          Entity: "Quotes",
+          RecordID: order.quoteId
+        });
+        
+        if (quoteResponse && quoteResponse.data && quoteResponse.data.length > 0) {
+          const quoteData = quoteResponse.data[0];
+          nickname = quoteData.Nickname || '';
+          if (nickname && nickname.trim() !== '') {
+            // Only show nickname if it's different from job type (case-insensitive comparison)
+            const jobTypeLower = (order.jobType || '').toLowerCase().trim();
+            const nicknameLower = nickname.toLowerCase().trim();
+            
+            if (jobTypeLower !== nicknameLower) {
+              // Show "JobType / Nickname" only when they're different
+              projectTypeDisplay = `${getDisplayValue(order.jobType)} / ${nickname}`;
+              console.log(`Found nickname "${nickname}" for order ${order.id} (different from job type)`);
+            } else {
+              // Nickname matches job type, just show job type
+              console.log(`Nickname "${nickname}" matches job type, showing only job type`);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch Quote for order ${order.id}:`, error);
+        // Continue without nickname - don't block modal display
+      }
+    }
+    
     // Show loading state while fetching team member names
     modalBody.innerHTML = `
       <div class="modal-section">
@@ -2745,7 +2788,7 @@ function getWeekNumber(date) {
       <div class="modal-section">
       <div class="modal-field">
           <span class="modal-label">Project Type:</span>
-          <span class="modal-value">${getDisplayValue(order.jobType)}</span>
+          <span class="modal-value">${projectTypeDisplay}</span>
       </div>
       <div class="modal-field">
           <span class="modal-label">Showroom:</span>
@@ -2780,11 +2823,12 @@ function getWeekNumber(date) {
         fetchUserMemberName(order.surveyor)
       ]);
       
-      // Update the modal with the fetched names
-      // Find the Designer and Surveyor fields by looking for their labels
+      // Update the modal with the fetched names and nickname
+      // Find the Designer, Surveyor, and Project Type fields by looking for their labels
       const modalFields = modalBody.querySelectorAll('.modal-field');
       let designerField = null;
       let surveyorField = null;
+      let projectTypeField = null;
       
       modalFields.forEach(field => {
         const label = field.querySelector('.modal-label');
@@ -2792,8 +2836,22 @@ function getWeekNumber(date) {
           designerField = field.querySelector('.modal-value');
         } else if (label && label.textContent === 'Surveyor:') {
           surveyorField = field.querySelector('.modal-value');
+        } else if (label && label.textContent === 'Project Type:') {
+          projectTypeField = field.querySelector('.modal-value');
         }
       });
+      
+      // Update Project Type with nickname if it was fetched and different from job type
+      if (projectTypeField && nickname && nickname.trim() !== '') {
+        const jobTypeLower = (order.jobType || '').toLowerCase().trim();
+        const nicknameLower = nickname.toLowerCase().trim();
+        
+        if (jobTypeLower !== nicknameLower) {
+          // Only update if nickname is different from job type
+          projectTypeField.textContent = `${getDisplayValue(order.jobType)} / ${nickname}`;
+        }
+        // If they match, keep the original job type display (no update needed)
+      }
       
       console.log('Designer field found:', designerField);
       console.log('Surveyor field found:', surveyorField);
