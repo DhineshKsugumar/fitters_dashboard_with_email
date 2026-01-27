@@ -3392,7 +3392,7 @@ function getWeekNumber(date) {
         </td>
         <td>
           <div class="action-buttons">
-              <button class="btn-edit" onclick="openEditFitterModal('${fitter.id}', '${fitter.firstName} ${fitter.lastName}', '${JSON.stringify(Array.isArray(fitter.skillset) ? fitter.skillset : fitter.skillset.split(',').map(s => s.trim())).replace(/"/g, '&quot;')}', '${JSON.stringify(Array.isArray(fitter.skillsShortage) ? fitter.skillsShortage : fitter.skillsShortage.split(',').map(s => s.trim())).replace(/"/g, '&quot;')}', '${fitter.postcodesCovered || ''}', '${fitter.workConsistency || ''}')">Edit</button>
+              <button class="btn-edit" onclick="openEditFitterModal('${fitter.id}', '${fitter.firstName} ${fitter.lastName}', '${JSON.stringify(Array.isArray(fitter.skillset) ? fitter.skillset : fitter.skillset.split(',').map(s => s.trim())).replace(/"/g, '&quot;')}', '${JSON.stringify(Array.isArray(fitter.skillsShortage) ? fitter.skillsShortage : fitter.skillsShortage.split(',').map(s => s.trim())).replace(/"/g, '&quot;')}', '${(fitter.postcodesCovered || '').replace(/'/g, "\\'")}', '${(fitter.workConsistency || '').replace(/'/g, "\\'")}', '${(fitter.plInsuranceNo || '').replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${fitter.plDate || ''}')">Edit</button>
             <button class="btn-view" onclick="viewFitterInCRM('${fitter.leadId || ''}')" ${!fitter.leadId ? 'disabled title="No Lead associated"' : ''}>View</button>
           </div>
         </td>
@@ -4138,15 +4138,17 @@ function getWeekNumber(date) {
   // Edit Fitter Modal Functionality
   // =============================================
   
-  window.openEditFitterModal = function(fitterId, fitterName, skillsetJson, skillsShortageJson, postcodeArea, workConsistency) {
+  window.openEditFitterModal = function(fitterId, fitterName, skillsetJson, skillsShortageJson, postcodeArea, workConsistency, insuranceNumber, insuranceDate) {
     const modal = document.getElementById('editFitterModal');
     const nameInput = document.getElementById('editFitterName');
     const skillsetSelected = document.getElementById('editSkillsetSelected');
     const skillsShortageSelected = document.getElementById('editSkillsShortageSelected');
     const postcodeInput = document.getElementById('editFitterPostcode');
     const workConsistencySelect = document.getElementById('editFitterWorkConsistency');
+    const insuranceNumberInput = document.getElementById('editFitterInsuranceNumber');
+    const insuranceDateInput = document.getElementById('editFitterInsuranceDate');
     
-    if (!modal || !nameInput || !skillsetSelected || !skillsShortageSelected || !postcodeInput || !workConsistencySelect) {
+    if (!modal || !nameInput || !skillsetSelected || !skillsShortageSelected || !postcodeInput || !workConsistencySelect || !insuranceNumberInput || !insuranceDateInput) {
       console.error('Edit modal elements not found!');
       return;
     }
@@ -4162,6 +4164,24 @@ function getWeekNumber(date) {
     postcodeInput.value = postcodeArea || '';
     workConsistencySelect.value = workConsistency || '';
     
+    // Set insurance number and date
+    insuranceNumberInput.value = insuranceNumber || '';
+    
+    // Format date for input field (YYYY-MM-DD)
+    if (insuranceDate) {
+      const date = new Date(insuranceDate);
+      if (!isNaN(date.getTime())) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        insuranceDateInput.value = `${year}-${month}-${day}`;
+      } else {
+        insuranceDateInput.value = '';
+      }
+    } else {
+      insuranceDateInput.value = '';
+    }
+    
     // Store current fitter data
     window.currentEditingFitter = {
       id: fitterId,
@@ -4169,7 +4189,9 @@ function getWeekNumber(date) {
       skillset: currentSkillset,
       skillsShortage: currentSkillsShortage,
       postcodeArea: postcodeArea || '',
-      workConsistency: workConsistency || ''
+      workConsistency: workConsistency || '',
+      insuranceNumber: insuranceNumber || '',
+      insuranceDate: insuranceDate || ''
     };
     
     // Populate multiselects
@@ -4649,8 +4671,10 @@ function getWeekNumber(date) {
     const skillsShortageDiv = document.getElementById('editSkillsShortageSelected');
     const postcodeInput = document.getElementById('editFitterPostcode');
     const workConsistencySelect = document.getElementById('editFitterWorkConsistency');
+    const insuranceNumberInput = document.getElementById('editFitterInsuranceNumber');
+    const insuranceDateInput = document.getElementById('editFitterInsuranceDate');
     
-    if (!selectedDiv || !skillsShortageDiv || !postcodeInput || !workConsistencySelect) {
+    if (!selectedDiv || !skillsShortageDiv || !postcodeInput || !workConsistencySelect || !insuranceNumberInput || !insuranceDateInput) {
       console.error('Edit modal elements not found');
       return;
     }
@@ -4671,12 +4695,26 @@ function getWeekNumber(date) {
     const newPostcodeArea = postcodeInput.value.trim();
     const newWorkConsistency = workConsistencySelect.value;
     
+    // Get insurance number and date
+    const newInsuranceNumber = insuranceNumberInput.value.trim();
+    let newInsuranceDate = insuranceDateInput.value.trim();
+    
+    // Convert date from YYYY-MM-DD to ISO format if provided
+    if (newInsuranceDate) {
+      const date = new Date(newInsuranceDate);
+      if (!isNaN(date.getTime())) {
+        newInsuranceDate = date.toISOString().split('T')[0];
+      }
+    }
+    
     try {
       console.log('Updating fitter:', window.currentEditingFitter.id);
       console.log('New skillset:', newSkillset);
       console.log('New skills shortage:', newSkillsShortage);
       console.log('New postcode area:', newPostcodeArea);
       console.log('New work consistency:', newWorkConsistency);
+      console.log('New insurance number:', newInsuranceNumber);
+      console.log('New insurance date:', newInsuranceDate);
       
       // Update fitter in CRM
       const updateData = {
@@ -4684,7 +4722,9 @@ function getWeekNumber(date) {
         Fitter_Skillset_2: newSkillset,
         Skills_They_Can_t_Do: newSkillsShortage,
         Postcode_Area_New: newPostcodeArea,
-        Work_Consistency: newWorkConsistency
+        Work_Consistency: newWorkConsistency,
+        PL_Insurance_Number: newInsuranceNumber || null,
+        PL_Date: newInsuranceDate || null
       };
       
       console.log('Update data:', updateData);
@@ -4704,6 +4744,8 @@ function getWeekNumber(date) {
           window.fitters[fitterIndex].skillsShortage = newSkillsShortage;
           window.fitters[fitterIndex].postcodesCovered = newPostcodeArea;
           window.fitters[fitterIndex].workConsistency = newWorkConsistency;
+          window.fitters[fitterIndex].plInsuranceNo = newInsuranceNumber;
+          window.fitters[fitterIndex].plDate = newInsuranceDate;
         }
         
         // Refresh fitters table
