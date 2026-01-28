@@ -1415,6 +1415,16 @@ body {
   background-color: #d1d5db;
 }
 
+.fitter-name-link {
+  color: #2563eb;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.fitter-name-link:hover {
+  text-decoration: underline;
+}
+
 /* Edit Fitter Modal Styles */
 .form-group {
   margin-bottom: 1.5rem;

@@ -3393,10 +3393,9 @@ function getWeekNumber(date) {
         <td>
           <div class="action-buttons">
               <button class="btn-edit" onclick="openEditFitterModal('${fitter.id}', '${fitter.firstName} ${fitter.lastName}', '${JSON.stringify(Array.isArray(fitter.skillset) ? fitter.skillset : fitter.skillset.split(',').map(s => s.trim())).replace(/"/g, '&quot;')}', '${JSON.stringify(Array.isArray(fitter.skillsShortage) ? fitter.skillsShortage : fitter.skillsShortage.split(',').map(s => s.trim())).replace(/"/g, '&quot;')}', '${(fitter.postcodesCovered || '').replace(/'/g, "\\'")}', '${(fitter.workConsistency || '').replace(/'/g, "\\'")}', '${(fitter.plInsuranceNo || '').replace(/'/g, "\\'").replace(/"/g, '&quot;')}', '${fitter.plDate || ''}')">Edit</button>
-            <button class="btn-view" onclick="viewFitterInCRM('${fitter.leadId || ''}')" ${!fitter.leadId ? 'disabled title="No Lead associated"' : ''}>View</button>
           </div>
         </td>
-        <td>${fitter.name}</td>
+        <td>${fitter.leadId ? `<a href="#" class="fitter-name-link" data-lead-id="${String(fitter.leadId).replace(/"/g, '&quot;')}" onclick="event.preventDefault(); viewFitterInCRM('${String(fitter.leadId).replace(/'/g, "\\'")}'); return false;">${(fitter.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</a>` : (fitter.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>
         <td>${fitter.email}</td>
         <td>${fitter.phone}</td>
         <td>
@@ -4183,13 +4182,14 @@ function getWeekNumber(date) {
       insuranceDateInput.value = '';
     }
     
-    // Show loading state for image
-    insuranceImagePreview.innerHTML = '<span style="color: #6b7280; font-size: 0.875rem;">Loading image...</span>';
+    // Show loading state for file preview
+    insuranceImagePreview.innerHTML = '<span style="color: #6b7280; font-size: 0.875rem;">Loading...</span>';
     
     // Fetch File_Upload_1 from the specific contact record
     let fileUploadUrl = '';
     let downloadUrl = '';
     let previewUrl = '';
+    let fileName = '';
     try {
       console.log(`Fetching File_Upload_1 for contact ${fitterId}`);
       const contactResponse = await ZOHO.CRM.API.getRecord({
@@ -4219,6 +4219,9 @@ function getWeekNumber(date) {
           }
           
           if (firstFile) {
+            // Extract file name for type detection (PDF vs image)
+            const rawName = firstFile.name || firstFile.file_name || firstFile.fileName || '';
+            fileName = typeof rawName === 'string' ? rawName : String(rawName || '');
             // Extract download URL (for download button)
             downloadUrl = firstFile.download_Url || firstFile.download_url || '';
             // Extract preview URL (for image display and open in new tab)
@@ -4274,100 +4277,103 @@ function getWeekNumber(date) {
       // Continue without image - don't block modal display
     }
     
-    // Display insurance image preview
+    // Detect if file is PDF (from URL or file name)
+    const isPdf = (() => {
+      if (!fileUploadUrl || typeof fileUploadUrl !== 'string') return false;
+      if (/\.pdf(\?|#|$)/i.test(fileUploadUrl)) return true;
+      const fn = (fileName || '').trim();
+      return fn.length > 0 && /\.pdf$/i.test(fn);
+    })();
+    
+    // Display insurance file preview (image or PDF)
     if (fileUploadUrl && typeof fileUploadUrl === 'string' && fileUploadUrl.trim() !== '') {
-      console.log('Displaying insurance image with URL:', fileUploadUrl);
       const hasDownloadUrl = downloadUrl && downloadUrl.trim() !== '';
       const hasPreviewUrl = previewUrl && previewUrl.trim() !== '';
       const openUrl = previewUrl || downloadUrl || fileUploadUrl;
+      const previewId = `insurancePreview_${fitterId}_${Date.now()}`;
       
-      // Generate unique IDs for this image instance
-      const imageId = `insuranceImage_${fitterId}_${Date.now()}`;
-      const zoomContainerId = `zoomContainer_${fitterId}_${Date.now()}`;
-      
-      insuranceImagePreview.innerHTML = `
-        <div style="text-align: center;">
-          <div id="${zoomContainerId}" style="overflow: hidden; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: inline-block; max-width: 100%;">
-            <img id="${imageId}" src="${fileUploadUrl}" alt="Insurance Image" style="max-width: 100%; max-height: 300px; display: block; transition: transform 0.2s ease; transform-origin: center center;" onerror="this.parentElement.innerHTML='<span style=\\'color: #dc2626; font-size: 0.875rem;\\'>Failed to load image</span>'">
+      if (isPdf) {
+        // PDF preview: embed/iframe + Download + Open in New Tab (no zoom)
+        insuranceImagePreview.innerHTML = `
+          <div style="text-align: center;">
+            <div style="overflow: hidden; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); background: #f3f4f6; margin-bottom: 0.75rem;">
+              <iframe id="${previewId}" src="${fileUploadUrl}#view=FitH" title="Insurance PDF" style="width: 100%; height: 400px; border: none;"></iframe>
+            </div>
+            <div style="display: flex; gap: 0.5rem; justify-content: center;">
+              ${hasDownloadUrl ? `<button id="downloadBtn_${previewId}" type="button" style="padding: 0.5rem 1rem; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Download</button>` : ''}
+              ${hasPreviewUrl || hasDownloadUrl ? `<button id="openTabBtn_${previewId}" type="button" style="padding: 0.5rem 1rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Open in New Tab</button>` : ''}
+            </div>
           </div>
-          <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: center; align-items: center;">
-            <button id="zoomOut_${imageId}" type="button" style="padding: 0.5rem 0.75rem; background-color: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; font-weight: 600; min-width: 40px;">-</button>
-            <button id="zoomReset_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #9ca3af; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Reset</button>
-            <button id="zoomIn_${imageId}" type="button" style="padding: 0.5rem 0.75rem; background-color: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; font-weight: 600; min-width: 40px;">+</button>
+        `;
+        const downloadBtn = document.getElementById(`downloadBtn_${previewId}`);
+        const openTabBtn = document.getElementById(`openTabBtn_${previewId}`);
+        if (downloadBtn) {
+          downloadBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(downloadUrl, '_blank');
+          });
+        }
+        if (openTabBtn) {
+          openTabBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(openUrl, '_blank');
+          });
+        }
+      } else {
+        // Image preview: img + zoom + Download + Open in New Tab
+        const imageId = `insuranceImage_${fitterId}_${Date.now()}`;
+        const zoomContainerId = `zoomContainer_${fitterId}_${Date.now()}`;
+        insuranceImagePreview.innerHTML = `
+          <div style="text-align: center;">
+            <div id="${zoomContainerId}" style="overflow: hidden; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: inline-block; max-width: 100%;">
+              <img id="${imageId}" src="${fileUploadUrl}" alt="Insurance" style="max-width: 100%; max-height: 300px; display: block; transition: transform 0.2s ease; transform-origin: center center;" onerror="this.parentElement.innerHTML='<span style=\\'color: #dc2626; font-size: 0.875rem;\\'>Failed to load image</span>'">
+            </div>
+            <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: center; align-items: center;">
+              <button id="zoomOut_${imageId}" type="button" style="padding: 0.5rem 0.75rem; background-color: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; font-weight: 600; min-width: 40px;">-</button>
+              <button id="zoomReset_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #9ca3af; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Reset</button>
+              <button id="zoomIn_${imageId}" type="button" style="padding: 0.5rem 0.75rem; background-color: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; font-weight: 600; min-width: 40px;">+</button>
+            </div>
+            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; justify-content: center;">
+              ${hasDownloadUrl ? `<button id="downloadBtn_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Download</button>` : ''}
+              ${hasPreviewUrl || hasDownloadUrl ? `<button id="openTabBtn_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Open in New Tab</button>` : ''}
+            </div>
           </div>
-          <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; justify-content: center;">
-            ${hasDownloadUrl ? `<button id="downloadBtn_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Download</button>` : ''}
-            ${hasPreviewUrl || hasDownloadUrl ? `<button id="openTabBtn_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Open in New Tab</button>` : ''}
-          </div>
-        </div>
-      `;
-      
-      // Set up zoom functionality
-      let currentZoom = 1;
-      const minZoom = 0.5;
-      const maxZoom = 3;
-      const zoomStep = 0.25;
-      
-      const imgElement = document.getElementById(imageId);
-      const zoomOutBtn = document.getElementById(`zoomOut_${imageId}`);
-      const zoomInBtn = document.getElementById(`zoomIn_${imageId}`);
-      const zoomResetBtn = document.getElementById(`zoomReset_${imageId}`);
-      const downloadBtn = document.getElementById(`downloadBtn_${imageId}`);
-      const openTabBtn = document.getElementById(`openTabBtn_${imageId}`);
-      
-      const updateZoom = (newZoom) => {
-        currentZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
-        imgElement.style.transform = `scale(${currentZoom})`;
-        imgElement.style.maxWidth = currentZoom === 1 ? '100%' : `${100 * currentZoom}%`;
-        imgElement.style.maxHeight = currentZoom === 1 ? '300px' : `${300 * currentZoom}px`;
-        
-        // Update button states
-        zoomOutBtn.disabled = currentZoom <= minZoom;
-        zoomInBtn.disabled = currentZoom >= maxZoom;
-        zoomOutBtn.style.opacity = currentZoom <= minZoom ? '0.5' : '1';
-        zoomInBtn.style.opacity = currentZoom >= maxZoom ? '0.5' : '1';
-      };
-      
-      // Zoom event handlers
-      zoomOutBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        updateZoom(currentZoom - zoomStep);
-      });
-      
-      zoomInBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        updateZoom(currentZoom + zoomStep);
-      });
-      
-      zoomResetBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        `;
+        let currentZoom = 1;
+        const minZoom = 0.5;
+        const maxZoom = 3;
+        const zoomStep = 0.25;
+        const imgElement = document.getElementById(imageId);
+        const zoomOutBtn = document.getElementById(`zoomOut_${imageId}`);
+        const zoomInBtn = document.getElementById(`zoomIn_${imageId}`);
+        const zoomResetBtn = document.getElementById(`zoomReset_${imageId}`);
+        const downloadBtn = document.getElementById(`downloadBtn_${imageId}`);
+        const openTabBtn = document.getElementById(`openTabBtn_${imageId}`);
+        const updateZoom = (newZoom) => {
+          currentZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
+          imgElement.style.transform = `scale(${currentZoom})`;
+          imgElement.style.maxWidth = currentZoom === 1 ? '100%' : `${100 * currentZoom}%`;
+          imgElement.style.maxHeight = currentZoom === 1 ? '300px' : `${300 * currentZoom}px`;
+          if (zoomOutBtn) {
+            zoomOutBtn.disabled = currentZoom <= minZoom;
+            zoomOutBtn.style.opacity = currentZoom <= minZoom ? '0.5' : '1';
+          }
+          if (zoomInBtn) {
+            zoomInBtn.disabled = currentZoom >= maxZoom;
+            zoomInBtn.style.opacity = currentZoom >= maxZoom ? '0.5' : '1';
+          }
+        };
+        if (zoomOutBtn) zoomOutBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); updateZoom(currentZoom - zoomStep); });
+        if (zoomInBtn) zoomInBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); updateZoom(currentZoom + zoomStep); });
+        if (zoomResetBtn) zoomResetBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); updateZoom(1); });
+        if (downloadBtn) downloadBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); window.open(downloadUrl, '_blank'); });
+        if (openTabBtn) openTabBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); window.open(openUrl, '_blank'); });
         updateZoom(1);
-      });
-      
-      // Download and Open button handlers
-      if (downloadBtn) {
-        downloadBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          window.open(downloadUrl, '_blank');
-        });
       }
-      
-      if (openTabBtn) {
-        openTabBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          window.open(openUrl, '_blank');
-        });
-      }
-      
-      // Initialize zoom state
-      updateZoom(1);
     } else {
-      insuranceImagePreview.innerHTML = '<span style="color: #6b7280; font-size: 0.875rem;">No image available</span>';
+      insuranceImagePreview.innerHTML = '<span style="color: #6b7280; font-size: 0.875rem;">No file available</span>';
     }
     
     // Store current fitter data
