@@ -4147,8 +4147,9 @@ function getWeekNumber(date) {
     const insuranceNumberInput = document.getElementById('editFitterInsuranceNumber');
     const insuranceDateInput = document.getElementById('editFitterInsuranceDate');
     const insuranceImagePreview = document.getElementById('insuranceImagePreview');
+    const termsConditionsPreview = document.getElementById('termsConditionsPreview');
     
-    if (!modal || !nameInput || !skillsetSelected || !skillsShortageSelected || !postcodeInput || !workConsistencySelect || !insuranceNumberInput || !insuranceDateInput || !insuranceImagePreview) {
+    if (!modal || !nameInput || !skillsetSelected || !skillsShortageSelected || !postcodeInput || !workConsistencySelect || !insuranceNumberInput || !insuranceDateInput || !insuranceImagePreview || !termsConditionsPreview) {
       console.error('Edit modal elements not found!');
       return;
     }
@@ -4182,16 +4183,20 @@ function getWeekNumber(date) {
       insuranceDateInput.value = '';
     }
     
-    // Show loading state for file preview
+    // Show loading state for file previews
     insuranceImagePreview.innerHTML = '<span style="color: #6b7280; font-size: 0.875rem;">Loading...</span>';
+    termsConditionsPreview.innerHTML = '<span style="color: #6b7280; font-size: 0.875rem;">Loading...</span>';
     
-    // Fetch File_Upload_1 from the specific contact record
+    // Fetch File_Upload_1 and Terms_Conditions_Upload from the specific contact record
     let fileUploadUrl = '';
     let downloadUrl = '';
     let previewUrl = '';
     let fileName = '';
+    let termsConditionsUrl = '';
+    let termsConditionsDownloadUrl = '';
+    let termsConditionsPreviewUrl = '';
     try {
-      console.log(`Fetching File_Upload_1 for contact ${fitterId}`);
+      console.log(`Fetching File_Upload_1 and Terms_Conditions_Upload for contact ${fitterId}`);
       const contactResponse = await ZOHO.CRM.API.getRecord({
         Entity: "Contacts",
         RecordID: fitterId
@@ -4199,181 +4204,114 @@ function getWeekNumber(date) {
       
       if (contactResponse && contactResponse.data && contactResponse.data.length > 0) {
         const contactData = contactResponse.data[0];
-        const fileUpload = contactData.File_Upload_1;
-        
-        console.log('File_Upload_1 data:', fileUpload);
-        
-        // Extract file upload URLs - handle different formats
-        if (fileUpload) {
-          let firstFile = null;
-          
-          if (typeof fileUpload === 'string') {
-            fileUploadUrl = fileUpload;
-            downloadUrl = fileUpload;
-            previewUrl = fileUpload;
-          } else if (Array.isArray(fileUpload) && fileUpload.length > 0) {
-            // Handle array format - get the first file object
-            firstFile = fileUpload[0];
-          } else {
-            firstFile = fileUpload;
-          }
-          
-          if (firstFile) {
-            // Extract file name for type detection (PDF vs image)
-            const rawName = firstFile.name || firstFile.file_name || firstFile.fileName || '';
-            fileName = typeof rawName === 'string' ? rawName : String(rawName || '');
-            // Extract download URL (for download button)
-            downloadUrl = firstFile.download_Url || firstFile.download_url || '';
-            // Extract preview URL (for image display and open in new tab)
-            previewUrl = firstFile.preview_Url || firstFile.preview_url || downloadUrl || '';
-            // Use preview URL for image display, fallback to download URL
-            fileUploadUrl = previewUrl || downloadUrl || firstFile.url || firstFile.id || '';
-          } else if (fileUpload.download_Url || fileUpload.download_url) {
-            downloadUrl = fileUpload.download_Url || fileUpload.download_url;
-            fileUploadUrl = downloadUrl;
-          } else if (fileUpload.preview_Url || fileUpload.preview_url) {
-            previewUrl = fileUpload.preview_Url || fileUpload.preview_url;
-            fileUploadUrl = previewUrl;
-          } else if (fileUpload.id) {
-            fileUploadUrl = fileUpload.id;
-            downloadUrl = fileUpload.id;
-            previewUrl = fileUpload.id;
-          } else if (fileUpload.url) {
-            fileUploadUrl = fileUpload.url;
-            downloadUrl = fileUpload.url;
-            previewUrl = fileUpload.url;
-          }
-        }
-        
-        // Ensure we have string URLs
-        if (fileUploadUrl && typeof fileUploadUrl !== 'string') {
-          fileUploadUrl = '';
-        }
-        if (downloadUrl && typeof downloadUrl !== 'string') {
-          downloadUrl = '';
-        }
-        if (previewUrl && typeof previewUrl !== 'string') {
-          previewUrl = '';
-        }
-        
-        // Prepend base URL if it's a relative path
         const baseUrl = 'https://crm.zoho.com';
-        if (fileUploadUrl && fileUploadUrl.trim() !== '' && fileUploadUrl.startsWith('/')) {
-          fileUploadUrl = baseUrl + fileUploadUrl;
-        }
-        if (downloadUrl && downloadUrl.trim() !== '' && downloadUrl.startsWith('/')) {
-          downloadUrl = baseUrl + downloadUrl;
-        }
-        if (previewUrl && previewUrl.trim() !== '' && previewUrl.startsWith('/')) {
-          previewUrl = baseUrl + previewUrl;
+        
+        // Helper to extract URLs from a file upload field
+        function extractFileUrls(fileUpload) {
+          let url = '', download = '', preview = '';
+          if (!fileUpload) return { url, download, preview };
+          let firstFile = null;
+          if (typeof fileUpload === 'string') {
+            url = download = preview = fileUpload;
+            return { url, download, preview };
+          }
+          if (Array.isArray(fileUpload) && fileUpload.length > 0) firstFile = fileUpload[0];
+          else firstFile = fileUpload;
+          if (firstFile) {
+            download = firstFile.download_Url || firstFile.download_url || '';
+            preview = firstFile.preview_Url || firstFile.preview_url || download || '';
+            url = preview || download || firstFile.url || firstFile.id || '';
+          } else if (fileUpload.download_Url || fileUpload.download_url) {
+            download = url = fileUpload.download_Url || fileUpload.download_url;
+          } else if (fileUpload.preview_Url || fileUpload.preview_url) {
+            preview = url = fileUpload.preview_Url || fileUpload.preview_url;
+          } else if (fileUpload.id) {
+            url = download = preview = fileUpload.id;
+          } else if (fileUpload.url) {
+            url = download = preview = fileUpload.url;
+          }
+          if (url && typeof url !== 'string') url = '';
+          if (download && typeof download !== 'string') download = '';
+          if (preview && typeof preview !== 'string') preview = '';
+          if (url && url.startsWith('/')) url = baseUrl + url;
+          if (download && download.startsWith('/')) download = baseUrl + download;
+          if (preview && preview.startsWith('/')) preview = baseUrl + preview;
+          return { url, download, preview };
         }
         
-        console.log('Extracted file upload URL:', fileUploadUrl);
-        console.log('Download URL:', downloadUrl);
-        console.log('Preview URL:', previewUrl);
+        const fileUpload = contactData.File_Upload_1;
+        const extracted = extractFileUrls(fileUpload);
+        fileUploadUrl = extracted.url;
+        downloadUrl = extracted.download;
+        previewUrl = extracted.preview;
+        
+        const termsUpload = contactData.Terms_Conditions_Upload;
+        const termsExtracted = extractFileUrls(termsUpload);
+        termsConditionsUrl = termsExtracted.url;
+        termsConditionsDownloadUrl = termsExtracted.download;
+        termsConditionsPreviewUrl = termsExtracted.preview;
       }
     } catch (error) {
-      console.warn(`Failed to fetch File_Upload_1 for contact ${fitterId}:`, error);
-      // Continue without image - don't block modal display
+      console.warn(`Failed to fetch file uploads for contact ${fitterId}:`, error);
     }
     
-    // Detect if file is PDF (from URL or file name)
-    const isPdf = (() => {
-      if (!fileUploadUrl || typeof fileUploadUrl !== 'string') return false;
-      if (/\.pdf(\?|#|$)/i.test(fileUploadUrl)) return true;
-      const fn = (fileName || '').trim();
-      return fn.length > 0 && /\.pdf$/i.test(fn);
-    })();
+    // Shared document icon SVG
+    const documentIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`;
     
-    // Display insurance file preview (image or PDF)
-    if (fileUploadUrl && typeof fileUploadUrl === 'string' && fileUploadUrl.trim() !== '') {
-      const hasDownloadUrl = downloadUrl && downloadUrl.trim() !== '';
-      const hasPreviewUrl = previewUrl && previewUrl.trim() !== '';
-      const openUrl = previewUrl || downloadUrl || fileUploadUrl;
-      const previewId = `insurancePreview_${fitterId}_${Date.now()}`;
-      
-      if (isPdf) {
-        // PDF preview: embed/iframe + Download + Open in New Tab (no zoom)
-        insuranceImagePreview.innerHTML = `
-          <div style="text-align: center;">
-            <div style="overflow: hidden; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); background: #f3f4f6; margin-bottom: 0.75rem;">
-              <iframe id="${previewId}" src="${fileUploadUrl}#view=FitH" title="Insurance PDF" style="width: 100%; height: 400px; border: none;"></iframe>
-            </div>
-            <div style="display: flex; gap: 0.5rem; justify-content: center;">
-              ${hasDownloadUrl ? `<button id="downloadBtn_${previewId}" type="button" style="padding: 0.5rem 1rem; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Download</button>` : ''}
-              ${hasPreviewUrl || hasDownloadUrl ? `<button id="openTabBtn_${previewId}" type="button" style="padding: 0.5rem 1rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Open in New Tab</button>` : ''}
-            </div>
-          </div>
-        `;
-        const downloadBtn = document.getElementById(`downloadBtn_${previewId}`);
-        const openTabBtn = document.getElementById(`openTabBtn_${previewId}`);
-        if (downloadBtn) {
-          downloadBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            window.open(downloadUrl, '_blank');
-          });
-        }
-        if (openTabBtn) {
-          openTabBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            window.open(openUrl, '_blank');
-          });
-        }
-      } else {
-        // Image preview: img + zoom + Download + Open in New Tab
-        const imageId = `insuranceImage_${fitterId}_${Date.now()}`;
-        const zoomContainerId = `zoomContainer_${fitterId}_${Date.now()}`;
-        insuranceImagePreview.innerHTML = `
-          <div style="text-align: center;">
-            <div id="${zoomContainerId}" style="overflow: hidden; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: inline-block; max-width: 100%;">
-              <img id="${imageId}" src="${fileUploadUrl}" alt="Insurance" style="max-width: 100%; max-height: 300px; display: block; transition: transform 0.2s ease; transform-origin: center center;" onerror="this.parentElement.innerHTML='<span style=\\'color: #dc2626; font-size: 0.875rem;\\'>Failed to load image</span>'">
-            </div>
-            <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: center; align-items: center;">
-              <button id="zoomOut_${imageId}" type="button" style="padding: 0.5rem 0.75rem; background-color: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; font-weight: 600; min-width: 40px;">-</button>
-              <button id="zoomReset_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #9ca3af; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Reset</button>
-              <button id="zoomIn_${imageId}" type="button" style="padding: 0.5rem 0.75rem; background-color: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; font-weight: 600; min-width: 40px;">+</button>
-            </div>
-            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; justify-content: center;">
-              ${hasDownloadUrl ? `<button id="downloadBtn_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Download</button>` : ''}
-              ${hasPreviewUrl || hasDownloadUrl ? `<button id="openTabBtn_${imageId}" type="button" style="padding: 0.5rem 1rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">Open in New Tab</button>` : ''}
-            </div>
-          </div>
-        `;
-        let currentZoom = 1;
-        const minZoom = 0.5;
-        const maxZoom = 3;
-        const zoomStep = 0.25;
-        const imgElement = document.getElementById(imageId);
-        const zoomOutBtn = document.getElementById(`zoomOut_${imageId}`);
-        const zoomInBtn = document.getElementById(`zoomIn_${imageId}`);
-        const zoomResetBtn = document.getElementById(`zoomReset_${imageId}`);
-        const downloadBtn = document.getElementById(`downloadBtn_${imageId}`);
-        const openTabBtn = document.getElementById(`openTabBtn_${imageId}`);
-        const updateZoom = (newZoom) => {
-          currentZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
-          imgElement.style.transform = `scale(${currentZoom})`;
-          imgElement.style.maxWidth = currentZoom === 1 ? '100%' : `${100 * currentZoom}%`;
-          imgElement.style.maxHeight = currentZoom === 1 ? '300px' : `${300 * currentZoom}px`;
-          if (zoomOutBtn) {
-            zoomOutBtn.disabled = currentZoom <= minZoom;
-            zoomOutBtn.style.opacity = currentZoom <= minZoom ? '0.5' : '1';
-          }
-          if (zoomInBtn) {
-            zoomInBtn.disabled = currentZoom >= maxZoom;
-            zoomInBtn.style.opacity = currentZoom >= maxZoom ? '0.5' : '1';
-          }
-        };
-        if (zoomOutBtn) zoomOutBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); updateZoom(currentZoom - zoomStep); });
-        if (zoomInBtn) zoomInBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); updateZoom(currentZoom + zoomStep); });
-        if (zoomResetBtn) zoomResetBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); updateZoom(1); });
-        if (downloadBtn) downloadBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); window.open(downloadUrl, '_blank'); });
-        if (openTabBtn) openTabBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); window.open(openUrl, '_blank'); });
-        updateZoom(1);
+    // Insurance: icon + link to view in new tab
+    const insuranceOpenUrl = (previewUrl && previewUrl.trim() !== '') ? previewUrl : ((downloadUrl && downloadUrl.trim() !== '') ? downloadUrl : fileUploadUrl);
+    const hasInsuranceFile = fileUploadUrl && typeof fileUploadUrl === 'string' && fileUploadUrl.trim() !== '';
+    const insuranceHref = (hasInsuranceFile && insuranceOpenUrl) ? insuranceOpenUrl.replace(/"/g, '&quot;') : '#';
+    
+    if (hasInsuranceFile) {
+      const iconBtnId = `insuranceIcon_${fitterId}_${Date.now()}`;
+      insuranceImagePreview.innerHTML = `
+        <button id="${iconBtnId}" type="button" class="insurance-view-icon-btn" title="View insurance in new tab" style="display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 1px solid #d1d5db; border-radius: 8px; background: #f0f9ff; color: #0369a1; cursor: pointer; transition: background 0.2s, color 0.2s;">
+          ${documentIconSvg}
+        </button>
+        <a href="${insuranceHref}" target="_blank" rel="noopener" class="file-view-link" title="View insurance in new tab">Click to view in new tab</a>
+      `;
+      const iconBtn = document.getElementById(iconBtnId);
+      if (iconBtn) {
+        iconBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(insuranceOpenUrl, '_blank');
+        });
       }
     } else {
-      insuranceImagePreview.innerHTML = '<span style="color: #6b7280; font-size: 0.875rem;">No file available</span>';
+      insuranceImagePreview.innerHTML = `
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; color: #9ca3af;" title="No file">${documentIconSvg}</span>
+        <span style="color: #9ca3af; font-size: 0.8125rem;">No file</span>
+      `;
+    }
+    
+    // Terms and Conditions: icon + link to view in new tab
+    const termsOpenUrl = (termsConditionsPreviewUrl && termsConditionsPreviewUrl.trim() !== '') ? termsConditionsPreviewUrl : ((termsConditionsDownloadUrl && termsConditionsDownloadUrl.trim() !== '') ? termsConditionsDownloadUrl : termsConditionsUrl);
+    const hasTermsFile = termsConditionsUrl && typeof termsConditionsUrl === 'string' && termsConditionsUrl.trim() !== '';
+    const termsHref = (hasTermsFile && termsOpenUrl) ? termsOpenUrl.replace(/"/g, '&quot;') : '#';
+    
+    if (hasTermsFile) {
+      const termsIconBtnId = `termsIcon_${fitterId}_${Date.now()}`;
+      termsConditionsPreview.innerHTML = `
+        <button id="${termsIconBtnId}" type="button" class="insurance-view-icon-btn" title="View terms and conditions in new tab" style="display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 1px solid #d1d5db; border-radius: 8px; background: #f0f9ff; color: #0369a1; cursor: pointer; transition: background 0.2s, color 0.2s;">
+          ${documentIconSvg}
+        </button>
+        <a href="${termsHref}" target="_blank" rel="noopener" class="file-view-link" title="View terms and conditions in new tab">Click to view in new tab</a>
+      `;
+      const termsIconBtn = document.getElementById(termsIconBtnId);
+      if (termsIconBtn) {
+        termsIconBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(termsOpenUrl, '_blank');
+        });
+      }
+    } else {
+      termsConditionsPreview.innerHTML = `
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; color: #9ca3af;" title="No file">${documentIconSvg}</span>
+        <span style="color: #9ca3af; font-size: 0.8125rem;">No file</span>
+      `;
     }
     
     // Store current fitter data

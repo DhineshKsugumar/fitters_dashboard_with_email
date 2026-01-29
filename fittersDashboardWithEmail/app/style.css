@@ -1425,6 +1425,25 @@ body {
   text-decoration: underline;
 }
 
+.insurance-view-icon-btn:hover {
+  background: #e0f2fe !important;
+  color: #0284c7 !important;
+}
+
+.insurance-view-icon-btn:active {
+  background: #bae6fd !important;
+}
+
+.file-view-link {
+  color: #0369a1;
+  text-decoration: none;
+  font-size: 0.8125rem;
+}
+
+.file-view-link:hover {
+  text-decoration: underline;
+}
+
 /* Edit Fitter Modal Styles */
 .form-group {
   margin-bottom: 1.5rem;
