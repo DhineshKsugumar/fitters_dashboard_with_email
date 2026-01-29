@@ -2975,12 +2975,22 @@ function getWeekNumber(date) {
     const calendarBody = document.getElementById('calendarBody');
     if (calendarBody) {
       calendarBody.innerHTML = `
-        <div style="text-align: center; padding: 2rem; color: #6b7280; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin: 1rem;">
+        <div id="noOrdersBanner" style="text-align: center; padding: 2rem; color: #6b7280; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin: 1rem;">
           <h3 style="margin-bottom: 1rem;">📅 No Orders Found</h3>
           <p style="margin-bottom: 1rem;">No orders found for the selected date range.</p>
-          <p style="font-size: 0.9rem; color: #9ca3af;">Try selecting a different date range or contact the administrator if this seems incorrect.</p>
+          <p style="font-size: 0.9rem; color: #9ca3af; margin-bottom: 1.25rem;">Try selecting a different date range or contact the administrator if this seems incorrect.</p>
+          <button type="button" id="bookHolidayFromNoOrdersBtn" class="btn btn-primary" style="margin-top: 0.5rem;">Book a holiday</button>
         </div>
       `;
+      const bookHolidayBtn = document.getElementById('bookHolidayFromNoOrdersBtn');
+      if (bookHolidayBtn) {
+        bookHolidayBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          // Remove banner and show calendar grid with all fitters (empty cells) so user can click to book a holiday
+          updateCalendar();
+        });
+      }
     }
     
     // Update counts to show no events
