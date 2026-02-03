@@ -4804,6 +4804,64 @@ function getWeekNumber(date) {
     });
   }
   
+  /** Allowed postcode area ranges: area code -> [min, max] (from Areas Covered). */
+  const POSTCODE_AREA_LIMITS = {
+    G: [1, 84],
+    PA: [1, 19],
+    ML: [1, 12],
+    KY: [1, 13],
+    EH: [1, 55],
+    FK: [1, 20],
+    KA: [1, 30],
+    PH: [1, 16],
+    DG: [1, 15],
+    TD: [1, 15]
+  };
+
+  /**
+   * Validate a single postcode range value against Areas Covered.
+   * Format: area + number-number (e.g. EH1-55, G1-8, DG1-1). Range must be within area limits.
+   * Returns { status: 'success' } or { status: 'error', message: string }.
+   */
+  function validateSinglePostcode(postcode) {
+    const trimmed = (postcode || '').trim();
+    if (trimmed === '') return { status: 'success' }; // skip empty
+
+    const rangeMatch = trimmed.match(/^(G|PA|ML|KY|EH|FK|KA|PH|DG|TD)(\d+)-(\d+)$/);
+    if (!rangeMatch) {
+      return { status: 'error', message: "Invalid format. Use area code followed by number-number (e.g. EH1-55, G1-8). Allowed areas: G, PA, ML, KY, EH, FK, KA, PH, DG, TD." };
+    }
+    const area = rangeMatch[1];
+    const low = parseInt(rangeMatch[2], 10);
+    const high = parseInt(rangeMatch[3], 10);
+    const limits = POSTCODE_AREA_LIMITS[area];
+    if (!limits) {
+      return { status: 'error', message: "Unknown area: " + area + "." };
+    }
+    if (low > high) {
+      return { status: 'error', message: "'" + trimmed + "': first number must be less than or equal to second number." };
+    }
+    const [areaMin, areaMax] = limits;
+    if (low < areaMin || high > areaMax) {
+      return { status: 'error', message: "'" + trimmed + "': " + area + " allows numbers " + areaMin + "-" + areaMax + " only." };
+    }
+    return { status: 'success' };
+  }
+
+  /**
+   * Validate comma-separated postcodes. Returns { valid: true } or { valid: false, message: string }.
+   */
+  function validatePostcodeArea(postcodeAreaStr) {
+    const parts = (postcodeAreaStr || '').split(',').map(p => p.trim()).filter(p => p !== '');
+    for (let i = 0; i < parts.length; i++) {
+      const result = validateSinglePostcode(parts[i]);
+      if (result.status === 'error') {
+        return { valid: false, message: result.message };
+      }
+    }
+    return { valid: true };
+  }
+
   async function saveFitterChanges() {
     if (!window.currentEditingFitter) {
       console.error('No fitter being edited');
@@ -4837,6 +4895,13 @@ function getWeekNumber(date) {
     // Get postcode and work consistency
     const newPostcodeArea = postcodeInput.value.trim();
     const newWorkConsistency = workConsistencySelect.value;
+
+    // Validate postcode area (comma-separated; each value validated)
+    const postcodeValidation = validatePostcodeArea(newPostcodeArea);
+    if (!postcodeValidation.valid) {
+      alert(postcodeValidation.message);
+      return;
+    }
     
     // Get insurance number and date
     const newInsuranceNumber = insuranceNumberInput.value.trim();
